@@ -47,7 +47,32 @@ describe("puzzle session", () => {
     expect(() => gameAtMoveIndex(puzzle, 1)).not.toThrow();
 
     const run = createRun(set);
-    expect(attemptMove(puzzle, run, "d5", "g2")).toEqual({ kind: "complete" });
+    expect(attemptMove(puzzle, run, "d5", "g2")).toEqual({
+      kind: "complete",
+      positions: ["r4rk1/pp3ppp/8/2b1p2Q/3N4/P2Bn2P/1PPN1Pq1/R1B2RK1 w - - 1 16"],
+    });
+  });
+
+  it("returns the player's position before the automatic reply position", () => {
+    const replyPuzzle: Puzzle = {
+      ...puzzle,
+      id: "0008Q",
+      fen: "8/4R3/1p2P3/p4r2/P6p/1P3Pk1/4K3/8 w - - 1 64",
+      moves: ["e7f7", "f5e5", "e2f1", "e5e6"],
+      themes: ["short"],
+    };
+    const replySet = { ...set, puzzles: [replyPuzzle] };
+    const playerPosition = "8/5R2/1p2P3/p3r3/P6p/1P3Pk1/4K3/8 w - - 3 65";
+    const replyPosition = "8/5R2/1p2P3/p3r3/P6p/1P3Pk1/8/5K2 b - - 4 65";
+
+    expect(puzzlePosition(replyPuzzle, { kind: "playing", moveIndex: 2, retryCount: 0 }).fen).toBe(playerPosition);
+    expect(puzzlePosition(replyPuzzle, { kind: "playing", moveIndex: 3, retryCount: 0 }).fen).toBe(replyPosition);
+
+    expect(attemptMove(replyPuzzle, createRun(replySet), "f5", "e5")).toEqual({
+      kind: "continue",
+      moveIndex: 3,
+      positions: [playerPosition, replyPosition],
+    });
   });
 
   it("accepts an alternate legal checkmate for a mate-in-one Puzzle", () => {
@@ -63,7 +88,10 @@ describe("puzzle session", () => {
       puzzles: [alternateMatePuzzle],
     };
 
-    expect(attemptMove(alternateMatePuzzle, createRun(alternateMateSet), "c2", "b1")).toEqual({ kind: "complete" });
+    expect(attemptMove(alternateMatePuzzle, createRun(alternateMateSet), "c2", "b1")).toEqual({
+      kind: "complete",
+      positions: ["8/8/8/8/8/8/8/kQK5 b - - 2 2"],
+    });
   });
 
   it("formats the remaining answer line as numbered SAN moves", () => {
@@ -113,6 +141,6 @@ describe("puzzle session", () => {
       if (result.kind === "continue") run = continuePuzzle(run, result.moveIndex);
     }
     expect(promotionForDrop("bP", "c1")).toBe("q");
-    expect(attemptMove(underPromotion, run, "c2", "c1", "n")).toEqual({ kind: "continue", moveIndex: 11 });
+    expect(attemptMove(underPromotion, run, "c2", "c1", "n")).toMatchObject({ kind: "continue", moveIndex: 11 });
   });
 });

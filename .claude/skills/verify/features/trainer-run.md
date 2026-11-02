@@ -6,6 +6,8 @@ Trainer starts a Run from an imported Puzzle Set, accepts moves on its chessboar
 
 - `run-start` starts a Run from a Puzzle Set in the library.
 - `run-board-move` accepts the expected move through the visible chessboard.
+- `run-square-selection` lets the player change or clear a selection without recording a Failure.
+- `run-move-animation` shows a correct player move before the automatic opponent reply.
 - `run-first-try` shows the completed Run score and persists its Puzzle Result.
 
 ## How to get to it (user POV)
@@ -24,12 +26,15 @@ Preconditions:
 
 - **Prepare an importable set.** Run `node .claude/skills/verify/scripts/drive.mjs trainer-run`. The helper uses Generator's visible controls to create and download a one-Puzzle `Mate In1` set named `Verification Run`.
 - **Import and start.** It selects that downloaded JSON through Trainer's `Import set` file picker, then chooses `Start new Run` on the matching library entry.
+- **Check square selection.** After selecting the source square, it switches selection to another friendly piece, taps that piece again to deselect it, and verifies the Puzzle remains active. It then repeats the deselection check on the expected source square before making the move.
 - **Solve on the board.** The helper reads the move line from the downloaded Puzzle Set and clicks `[data-square="d5"]`, then `[data-square="g2"]`, for the selected sample Puzzle. Both clicks pass through the chessboard UI.
 - **Verify score and storage.** Trainer shows `Run complete` and `100%` first-try score. A read-only IndexedDB check confirms the Run is completed and its Puzzle Result is `first-try-solved`.
-- **Proof.** Inspect `20-trainer-run-started` and `30-trainer-run-summary` PNG/state files, the downloaded Puzzle Set, `actions.jsonl`, and the IndexedDB result recorded in `run-summary.json`.
+- **Verify drag and reply feedback.** The helper starts the seeded `Warm-up tactics` Run, solves its first Puzzle, and drags `f5-e5` in Puzzle `0008Q`. It confirms the rook is placed on `e5` without a second transition, the opponent king's `250 ms` reply transition begins afterward, and IndexedDB advances to move index `3`.
+- **Proof.** Inspect `20-trainer-run-started` and `30-trainer-run-summary` PNG/state files, `40-trainer-opponent-reply-animation.png`, the downloaded Puzzle Set, `actions.jsonl`, and the IndexedDB result recorded in `run-summary.json`.
 
 ## Gotchas
 
-- The helper reads the selected Puzzle's actual move line from the exported file, so the journey does not depend on a hard-coded Puzzle ID.
+- The imported Mate In1 solve reads the selected Puzzle's move line from the exported file, so that portion does not depend on a hard-coded Puzzle ID.
+- The animation check intentionally uses the checked-in Warm-up fixtures `0000H` and `0008Q`; `40-trainer-opponent-reply-animation.png` captures the reply transition.
 - `Mate In1` is displayed as the theme label. The helper's checked-in sample fixture has one matching Puzzle. A full generated index is not covered by this journey and must not be inferred from this proof.
 - A legal but incorrect or illegal board move records a Failure and cannot earn a first-try point. This journey submits the selected Puzzle's expected user move.

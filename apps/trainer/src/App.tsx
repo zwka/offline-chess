@@ -59,6 +59,14 @@ type ThemeChoice = "system" | "light" | "dark";
 type View = "library" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
 const GENERATOR_URL = import.meta.env.VITE_GENERATOR_URL ?? (import.meta.env.DEV ? "http://127.0.0.1:4173" : "");
+const MOVE_ANIMATION_DURATION_MS = 250;
+
+type BoardPlayback = {
+  run: ActiveRun;
+  positions: string[];
+  frameIndex: number;
+  completesRun: boolean;
+};
 
 const PROMOTION_CHOICES: Array<{ value: PromotionChoice; label: string }> = [
   { value: "q", label: "Queen" },
@@ -197,6 +205,8 @@ function App() {
   const [startingSetId, setStartingSetId] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string; piece: string } | null>(null);
+  const [boardPlayback, setBoardPlayback] = useState<BoardPlayback | null>(null);
+  const [boardResetVersion, setBoardResetVersion] = useState(0);
   const solutionLineRef = useRef<HTMLParagraphElement>(null);
   const setInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -229,7 +239,8 @@ function App() {
   }, []);
 
   const activeRun = data?.runs.find((run): run is ActiveRun => run.id === selectedRunId && run.status === "active");
-  const selectedSet = activeRun ? data?.sets.find((record) => record.set.id === activeRun.setId)?.set : undefined;
+  const displayedRun = boardPlayback?.run.id === selectedRunId ? boardPlayback.run : activeRun;
+  const selectedSet = displayedRun ? data?.sets.find((record) => record.set.id === displayedRun.setId)?.set : undefined;
   const historyRun = data?.runs.find((run) => run.id === historyRunId);
   const historySet = historyRun ? data?.sets.find((record) => record.set.id === historyRun.setId)?.set : undefined;
   const visibleSets = data?.sets.filter((record) => !record.archived) ?? [];
@@ -243,17 +254,43 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [view, selectedRunId]);
 
-  async function updateRun(nextRun: Run) {
+  useEffect(() => {
+    if (!boardPlayback) return;
+    const timer = window.setTimeout(() => {
+      if (boardPlayback.frameIndex + 1 < boardPlayback.positions.length) {
+        setBoardPlayback((current) => current === boardPlayback
+          ? { ...current, frameIndex: current.frameIndex + 1 }
+          : current);
+        return;
+      }
+      setBoardPlayback((current) => current === boardPlayback ? null : current);
+      if (boardPlayback.completesRun) setView("summary");
+    }, MOVE_ANIMATION_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [boardPlayback]);
+
+  async function updateRun(
+    nextRun: Run,
+    options: { playback?: { run: ActiveRun; positions: string[] }; resetBoard?: boolean } = {},
+  ) {
     setIsPersisting(true);
     try {
       await saveRun(nextRun);
+      if (options.playback) {
+        setBoardPlayback({
+          ...options.playback,
+          frameIndex: 0,
+          completesRun: nextRun.status === "completed",
+        });
+      }
+      if (options.resetBoard) setBoardResetVersion((current) => current + 1);
       setData((current) => current ? {
         ...current,
         runs: current.runs.some((run) => run.id === nextRun.id)
           ? current.runs.map((run) => run.id === nextRun.id ? nextRun : run)
           : [...current.runs, nextRun],
       } : current);
-      if (nextRun.status === "completed") setView("summary");
+      if (nextRun.status === "completed" && !options.playback) setView("summary");
     } catch {
       setNotice("The latest action could not be saved locally. Your previous state is still intact.");
     } finally {
@@ -336,7 +373,7 @@ function App() {
   }
 
   function handleMoveAttempt(from: string, to: string, piece: string, promotion?: PromotionChoice) {
-    if (isPersisting || !activeRun || !selectedSet || activeRun.status !== "active") return false;
+    if (isPersisting || boardPlayback || !activeRun || !selectedSet || activeRun.status !== "active" || activeRun.currentPuzzle.kind !== "playing") return false;
     const isPawnPromotion = piece.slice(1, 2).toUpperCase() === "P" && ["1", "8"].includes(to.slice(1, 2));
     if (isPawnPromotion && !promotion) {
       setPendingPromotion({ from, to, piece });
@@ -354,16 +391,20 @@ function App() {
     const nextRun = outcome.kind === "continue"
       ? continuePuzzle(activeRun, outcome.moveIndex)
       : completePuzzle(activeRun);
-    void updateRun(nextRun);
+    void updateRun(nextRun, { playback: { run: activeRun, positions: outcome.positions } });
     setSelectedSquare(null);
     setPendingPromotion(null);
     return true;
   }
 
   function handleSquareClick(square: string, piece?: string) {
-    if (!activeRun || activeRun.currentPuzzle.kind !== "playing" || pendingPromotion) return;
+    if (isPersisting || boardPlayback || !activeRun || activeRun.currentPuzzle.kind !== "playing" || pendingPromotion) return;
     if (!selectedSquare) {
       if (piece) setSelectedSquare(square);
+      return;
+    }
+    if (square === selectedSquare) {
+      setSelectedSquare(null);
       return;
     }
     const puzzle = selectedSet?.puzzles[activeRun.currentPuzzleIndex];
@@ -372,22 +413,26 @@ function App() {
     if (!isSquare(selectedSquare)) return;
     const selectedPiece = game.get(selectedSquare);
     const selectedPieceCode = selectedPiece ? `${selectedPiece.color}${selectedPiece.type}` : "";
+    if (piece && selectedPiece && piece.slice(0, 1).toLowerCase() === selectedPiece.color) {
+      setSelectedSquare(square);
+      return;
+    }
     handleMoveAttempt(selectedSquare, square, selectedPieceCode);
   }
 
   function handleNextAfterError() {
-    if (isPersisting || !activeRun || activeRun.currentPuzzle.kind === "playing") return;
+    if (isPersisting || boardPlayback || !activeRun || activeRun.currentPuzzle.kind === "playing") return;
     void updateRun(nextAfterPuzzle(activeRun));
   }
 
   function handleRetry() {
-    if (isPersisting || !activeRun || (activeRun.currentPuzzle.kind !== "error" && activeRun.currentPuzzle.kind !== "solution-revealed")) return;
-    void updateRun(retryPuzzle(activeRun));
+    if (isPersisting || boardPlayback || !activeRun || (activeRun.currentPuzzle.kind !== "error" && activeRun.currentPuzzle.kind !== "solution-revealed")) return;
+    void updateRun(retryPuzzle(activeRun), { resetBoard: true });
   }
 
   function handleShowSolution() {
-    if (isPersisting || !activeRun || (activeRun.currentPuzzle.kind !== "playing" && activeRun.currentPuzzle.kind !== "error")) return;
-    void updateRun(revealPuzzleSolution(activeRun));
+    if (isPersisting || boardPlayback || !activeRun || (activeRun.currentPuzzle.kind !== "playing" && activeRun.currentPuzzle.kind !== "error")) return;
+    void updateRun(revealPuzzleSolution(activeRun), { resetBoard: true });
     setSelectedSquare(null);
     setPendingPromotion(null);
   }
@@ -457,42 +502,49 @@ function App() {
   }
 
   function renderSolve() {
-    if (!activeRun || !selectedSet) return null;
-    const puzzle = selectedSet.puzzles[activeRun.currentPuzzleIndex];
+    const run = displayedRun;
+    if (!run || !selectedSet) return null;
+    const puzzle = selectedSet.puzzles[run.currentPuzzleIndex];
     if (!puzzle) return null;
-    const state = activeRun.currentPuzzle;
+    const state = run.currentPuzzle;
     const position = puzzlePosition(puzzle, state);
-    const score = scoreRun(activeRun);
+    const playback = boardPlayback?.run.id === run.id ? boardPlayback : null;
+    const boardPosition = playback?.positions[playback.frameIndex] ?? position.fen;
+    const score = scoreRun(run);
     const isError = state.kind === "error";
     const isSolutionRevealed = state.kind === "solution-revealed";
     const isCompletedAfterError = state.kind === "completed-after-error";
     const interactionLocked = isError || isSolutionRevealed || isCompletedAfterError;
 
     const boardOptions: ChessboardOptions = {
-      position: position.fen,
+      position: boardPosition,
       boardOrientation: position.orientation,
-      allowDragging: !interactionLocked && !pendingPromotion,
-      animationDurationInMs: 160,
+      allowDragging: !interactionLocked && !pendingPromotion && !isPersisting && !playback,
+      animationDurationInMs: MOVE_ANIMATION_DURATION_MS,
+      showAnimations: true,
       showNotation: true,
       lightSquareStyle: { backgroundColor: "var(--board-light)" },
       darkSquareStyle: { backgroundColor: "var(--board-dark)" },
       boardStyle: { borderRadius: "5px", overflow: "hidden", boxShadow: "0 14px 36px rgba(20, 31, 29, 0.16)" },
       squareStyles: selectedSquare ? { [selectedSquare]: { boxShadow: "inset 0 0 0 4px var(--board-select)" } } : undefined,
-      onPieceDrop: ({ sourceSquare, targetSquare, piece }) => targetSquare ? handleMoveAttempt(sourceSquare, targetSquare, piece.pieceType) : false,
+      // The held piece already travelled to the target; playback animates the automatic reply.
+      onPieceDrop: ({ sourceSquare, targetSquare, piece }) => targetSquare
+        ? handleMoveAttempt(sourceSquare, targetSquare, piece.pieceType)
+        : false,
       onSquareClick: ({ square, piece }) => handleSquareClick(square, piece?.pieceType),
     };
 
     return (
       <main className="solve-main">
         <div className="solve-topline">
-          <button className="back-button" type="button" onClick={() => setView("library")}><ArrowLeft size={17} /> Library</button>
+          <button className="back-button" type="button" onClick={() => setView("library")} disabled={isPersisting || Boolean(playback)}><ArrowLeft size={17} /> Library</button>
           <div className="solve-set-name"><span>{selectedSet.name}</span><span className="separator">/</span><span>{selectedSet.selection.ratingMin}-{selectedSet.selection.ratingMax}</span></div>
-          <div className="solve-actions"><span className="solve-score">{score.firstTrySolved} scored</span><span className="solve-counter">{activeRun.currentPuzzleIndex + 1} / {activeRun.results.length}</span></div>
+          <div className="solve-actions"><span className="solve-score">{score.firstTrySolved} scored</span><span className="solve-counter">{run.currentPuzzleIndex + 1} / {run.results.length}</span></div>
         </div>
-        <div className="progress-track"><span style={{ width: `${((activeRun.currentPuzzleIndex) / activeRun.results.length) * 100}%` }} /></div>
+        <div className="progress-track"><span style={{ width: `${(run.currentPuzzleIndex / run.results.length) * 100}%` }} /></div>
         <div className="solve-grid">
           <section className="board-column">
-            <div className="board-frame"><Chessboard options={boardOptions} />{pendingPromotion && <div className="promotion-picker"><span>Choose promotion</span><div>{PROMOTION_CHOICES.map((choice) => <button type="button" key={choice.value} onClick={() => choosePromotion(choice.value)}>{choice.label}</button>)}</div></div>}</div>
+            <div className="board-frame"><Chessboard key={`${run.id}:${run.currentPuzzleIndex}:${boardResetVersion}`} options={boardOptions} />{pendingPromotion && <div className="promotion-picker"><span>Choose promotion</span><div>{PROMOTION_CHOICES.map((choice) => <button type="button" key={choice.value} onClick={() => choosePromotion(choice.value)}>{choice.label}</button>)}</div></div>}</div>
             <div className="board-caption"><span><span className="turn-dot" /> {position.orientation === "white" ? "White" : "Black"} to solve</span><span>{puzzle.id}</span></div>
           </section>
           <aside className={`solve-panel ${isError || isSolutionRevealed ? "error-state" : isCompletedAfterError ? "recovered-state" : ""}`}>
@@ -502,7 +554,7 @@ function App() {
                 <p className="eyebrow">First try missed</p>
                 <h2>Reset and look again.</h2>
                 <p className="solve-copy">The score is recorded as a failure. You can retry this position as many times as needed.</p>
-                <div className="solve-panel-actions"><button className="secondary-button" type="button" onClick={handleShowSolution} disabled={isPersisting}><Eye size={17} /> Show solution</button><button className="primary-button" type="button" onClick={handleRetry} disabled={isPersisting}><RotateCcw size={17} /> Retry puzzle</button><button className="secondary-button" type="button" onClick={handleNextAfterError} disabled={isPersisting}><SkipForward size={17} /> Next puzzle</button></div>
+                <div className="solve-panel-actions"><button className="secondary-button" type="button" onClick={handleShowSolution} disabled={isPersisting || Boolean(playback)}><Eye size={17} /> Show solution</button><button className="primary-button" type="button" onClick={handleRetry} disabled={isPersisting || Boolean(playback)}><RotateCcw size={17} /> Retry puzzle</button><button className="secondary-button" type="button" onClick={handleNextAfterError} disabled={isPersisting || Boolean(playback)}><SkipForward size={17} /> Next puzzle</button></div>
               </>
             ) : isSolutionRevealed ? (
               <>
@@ -511,7 +563,7 @@ function App() {
                 <h2>{puzzle.themes.includes("mateIn1") ? "One solution" : "Solution"}</h2>
                 <p className="solve-copy">This Puzzle Result is recorded as a failure.</p>
                 <p ref={solutionLineRef} className="solution-line" tabIndex={-1} aria-live="polite" aria-atomic="true">{solutionLine(puzzle, state.moveIndex)}</p>
-                <div className="solve-panel-actions"><button className="primary-button" type="button" onClick={handleRetry} disabled={isPersisting}><RotateCcw size={17} /> Retry puzzle</button><button className="secondary-button" type="button" onClick={handleNextAfterError} disabled={isPersisting}><SkipForward size={17} /> Next puzzle</button></div>
+                <div className="solve-panel-actions"><button className="primary-button" type="button" onClick={handleRetry} disabled={isPersisting || Boolean(playback)}><RotateCcw size={17} /> Retry puzzle</button><button className="secondary-button" type="button" onClick={handleNextAfterError} disabled={isPersisting || Boolean(playback)}><SkipForward size={17} /> Next puzzle</button></div>
               </>
             ) : isCompletedAfterError ? (
               <>
@@ -524,12 +576,12 @@ function App() {
             ) : (
               <>
                 <div className="state-icon playing-icon"><BarChart3 size={22} /></div>
-                <p className="eyebrow">Puzzle {String(activeRun.currentPuzzleIndex + 1).padStart(2, "0")}</p>
+                <p className="eyebrow">Puzzle {String(run.currentPuzzleIndex + 1).padStart(2, "0")}</p>
                 <h2>Find the best move.</h2>
                 <p className="solve-copy">Play the tactical idea. The opponent will answer automatically when your move is correct.</p>
                 <div className="solve-meta"><span>First-try score</span><strong>{score.firstTrySolved} / {score.total}</strong></div>
                 <div className="solve-tip"><CircleHelp size={16} /><span>Rating and themes stay hidden until this Puzzle is complete.</span></div>
-                <div className="solve-panel-actions"><button className="secondary-button" type="button" onClick={handleShowSolution} disabled={isPersisting}><Eye size={17} /> Show solution</button></div>
+                <div className="solve-panel-actions"><button className="secondary-button" type="button" onClick={handleShowSolution} disabled={isPersisting || Boolean(playback)}><Eye size={17} /> Show solution</button></div>
               </>
             )}
             <div className="puzzle-source-link"><span>Source puzzle</span><a href={puzzle.gameUrl} target="_blank" rel="noreferrer">View record <ExternalLink size={13} /></a></div>
@@ -590,8 +642,8 @@ function App() {
       <header className="topbar">
         <div className="brand-lockup"><div className="brand-mark">W</div><div><div className="brand-name">Woodpecker</div><div className="brand-section">Trainer</div></div></div>
         <nav className="app-nav" aria-label="Primary navigation">
-          <button className={view === "library" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("library")}><Library size={15} /> Library</button>
-          <button className={view === "history" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("history")}><History size={15} /> History</button>
+          <button className={view === "library" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("library")} disabled={isPersisting || Boolean(boardPlayback)}><Library size={15} /> Library</button>
+          <button className={view === "history" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("history")} disabled={isPersisting || Boolean(boardPlayback)}><History size={15} /> History</button>
         </nav>
         <div className="topbar-actions">{GENERATOR_URL && <a className="quiet-link" href={GENERATOR_URL} target="_blank" rel="noreferrer">Open Generator <ExternalLink size={15} /></a>}<ThemeControl choice={theme.choice} onChange={theme.setChoice} /></div>
       </header>

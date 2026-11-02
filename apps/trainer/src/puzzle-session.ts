@@ -85,8 +85,8 @@ export function puzzlePosition(puzzle: Puzzle, state: ActivePuzzleState): { fen:
 export type MoveAttempt =
   | { kind: "illegal" }
   | { kind: "incorrect" }
-  | { kind: "continue"; moveIndex: number }
-  | { kind: "complete" };
+  | { kind: "continue"; moveIndex: number; positions: [string, string] }
+  | { kind: "complete"; positions: [string] };
 
 function sameUci(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
@@ -125,14 +125,15 @@ export function attemptMove(
     return { kind: "incorrect" };
   }
 
+  const playerPosition = game.fen();
   if (isMateInOne || run.currentPuzzle.moveIndex + 1 >= puzzle.moves.length) {
-    return { kind: "complete" };
+    return { kind: "complete", positions: [playerPosition] };
   }
 
   const opponentMove = puzzle.moves[run.currentPuzzle.moveIndex + 1];
-  if (!opponentMove) return { kind: "complete" };
+  if (!opponentMove) return { kind: "complete", positions: [playerPosition] };
   applyUci(game, opponentMove);
-  return { kind: "continue", moveIndex: run.currentPuzzle.moveIndex + 2 };
+  return { kind: "continue", moveIndex: run.currentPuzzle.moveIndex + 2, positions: [playerPosition, game.fen()] };
 }
 
 export function promotionForDrop(piece: string, targetSquare: string): PieceSymbol | undefined {

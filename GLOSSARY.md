@@ -40,7 +40,7 @@ A Puzzle Result in which the player completes the entire expected solution witho
 _Avoid_: First attempt, perfect solve
 
 **Failure**:
-A Puzzle Result whose first try included an incorrect or illegal player move, or ended when the player chose to reveal the solution. The Puzzle may still be completed later, but the Result does not earn the Run's point.
+A Puzzle Result whose first try included an incorrect or illegal player move, or ended when the player chose to reveal the solution; selecting, deselecting, or switching a piece without submitting a move does not count as a move. The Puzzle may still be completed later, but the Result does not earn the Run's point.
 _Avoid_: Loss, failed Run
 
 **Eventually Completed**:

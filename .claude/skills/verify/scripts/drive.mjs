@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
+import { Chess } from "chess.js";
 
 const root = resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
 const feature = process.argv[2];
@@ -281,18 +282,41 @@ async function main() {
     }
   }
 
-  async function clickAt(expression, description) {
-    const box = await evaluate(`(() => {
+  async function elementCenter(expression, description) {
+    const point = await evaluate(`(() => {
       const element = ${expression};
       if (!element || !element.getClientRects().length) return null;
       element.scrollIntoView({ block: "center", inline: "center" });
       const rect = element.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()`);
-    assert(box, `Could not find visible ${description}`);
+    assert(point, `Could not find visible ${description}`);
+    return point;
+  }
+
+  async function clickAt(expression, description) {
+    const box = await elementCenter(expression, description);
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
     await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", clickCount: 1 });
+  }
+
+  async function dragAt(sourceSelector, targetSelector, description) {
+    const source = await elementCenter(`document.querySelector(${JSON.stringify(sourceSelector)})`, `${description} source`);
+    const target = await elementCenter(`document.querySelector(${JSON.stringify(targetSelector)})`, `${description} target`);
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: source.x, y: source.y });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: source.x, y: source.y, button: "left", buttons: 1 });
+    for (let step = 1; step <= 8; step += 1) {
+      const progress = step / 8;
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: source.x + (target.x - source.x) * progress,
+        y: source.y + (target.y - source.y) * progress,
+        buttons: 1,
+      });
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 16));
+    }
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: target.x, y: target.y, button: "left" });
   }
 
   async function clickButton(name, scopeSelector) {
@@ -588,9 +612,17 @@ async function main() {
 
     const userMoves = set.puzzles[0].moves.filter((_, index) => index % 2 === 1);
     assert(set.puzzles[0].themes.includes("mateIn1") && userMoves.length === 1, `Puzzle Set "${name}" is not a single-move Mate In1 precondition`);
+    const setupMove = set.puzzles[0].moves[0];
+    assert(setupMove, `Puzzle Set "${name}" has no setup move`);
+    const setupGame = new Chess(set.puzzles[0].fen);
+    setupGame.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove.slice(4, 5) || undefined });
     for (const uci of userMoves) {
       const from = uci.slice(0, 2);
       const to = uci.slice(2, 4);
+      const selectedPiece = setupGame.get(from);
+      const friendlySquare = Array.from({ length: 64 }, (_, index) => `${"abcdefgh"[index % 8]}${Math.floor(index / 8) + 1}`)
+        .find((square) => square !== from && setupGame.get(square)?.color === selectedPiece?.color);
+      assert(friendlySquare, `Puzzle ${set.puzzles[0].id} has no other friendly piece for the selection check`);
       const moveBefore = (await pageState()).text.slice(0, 2500);
       await clickAt(`document.querySelector('[data-square="${from}"]')`, `chessboard square ${from}`);
       const selectedSquare = await evaluate(`(() => {
@@ -599,6 +631,19 @@ async function main() {
       })()`);
       recordAction(`Select chessboard square ${from}`, `[data-square="${from}"]`, "Puzzle is active", JSON.stringify(selectedSquare));
       await capture("25-trainer-source-square-selected");
+      await clickAt(`document.querySelector('[data-square="${friendlySquare}"]')`, `friendly chessboard square ${friendlySquare}`);
+      await clickAt(`document.querySelector('[data-square="${friendlySquare}"]')`, `selected friendly chessboard square ${friendlySquare}`);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
+      const switchedState = await pageState();
+      assert(switchedState.text.includes("Find the best move.") && !normalizeText(switchedState.text).includes("first try missed"), "Switching to another friendly piece should not record a Failure");
+      recordAction("Switch and deselect friendly piece", `[data-square="${from}"] then [data-square="${friendlySquare}"] twice`, "Source piece is selected", switchedState.text.slice(0, 2500));
+      await clickAt(`document.querySelector('[data-square="${from}"]')`, `chessboard square ${from}`);
+      await clickAt(`document.querySelector('[data-square="${from}"]')`, `selected chessboard square ${from}`);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
+      const deselectedState = await pageState();
+      assert(deselectedState.text.includes("Find the best move.") && !normalizeText(deselectedState.text).includes("first try missed"), "Tapping the selected piece again should deselect it without recording a Failure");
+      recordAction(`Deselect chessboard square ${from}`, `[data-square="${from}"]`, "Piece is selected", deselectedState.text.slice(0, 2500));
+      await clickAt(`document.querySelector('[data-square="${from}"]')`, `chessboard square ${from}`);
       await clickAt(`document.querySelector('[data-square="${to}"]')`, `chessboard square ${to}`);
       await capture("26-trainer-destination-square-clicked");
       const moveResult = await waitFor(async () => {
@@ -618,6 +663,84 @@ async function main() {
     const run = db.runs.find((candidate) => candidate.setId === db.sets.find((record) => record.set.name === name)?.set.id);
     assert(run?.status === "completed" && run.results[0]?.status === "first-try-solved", "Completed Run or first-try Puzzle Result was not persisted in IndexedDB");
     return { db, run };
+  }
+
+  async function verifyAutomaticReplyAnimation() {
+    const demoSet = JSON.parse(await readFile(join(root, "apps", "trainer", "public", "demo-set.json"), "utf8"));
+    const firstPuzzle = demoSet.puzzles[0];
+    const replyPuzzle = demoSet.puzzles[1];
+    assert(firstPuzzle?.id === "0000H" && replyPuzzle?.id === "0008Q", "Warm-up animation fixtures are unavailable");
+
+    await clickAt('document.querySelector(".summary-header .back-button")', "summary Library button");
+    await clickSetCardButton("Warm-up tactics", "Start new Run");
+    const start = await waitFor(async () => {
+      const state = await pageState();
+      const text = normalizeText(state.text);
+      return text.includes("warm-up tactics") && text.includes("puzzle 01") ? state : undefined;
+    }, "seeded Warm-up Run to open");
+    recordAction("Start seeded Warm-up Run", ".set-card h3=Warm-up tactics -> button: Start new Run", "Run summary is visible", start.text.slice(0, 2500));
+
+    const firstMove = firstPuzzle.moves[1];
+    assert(firstMove, "Warm-up first Puzzle has no player move");
+    await clickAt(`document.querySelector('[data-square="${firstMove.slice(0, 2)}"]')`, `chessboard square ${firstMove.slice(0, 2)}`);
+    await clickAt(`document.querySelector('[data-square="${firstMove.slice(2, 4)}"]')`, `chessboard square ${firstMove.slice(2, 4)}`);
+    const secondPuzzle = await waitFor(async () => {
+      const state = await pageState();
+      const text = normalizeText(state.text);
+      return text.includes("puzzle 02") && text.includes("find the best move.") ? state : undefined;
+    }, "Warm-up Run to advance to its multi-ply Puzzle");
+    recordAction("Advance to multi-ply Puzzle", "Warm-up Puzzle 01 expected move", start.text.slice(0, 2500), secondPuzzle.text.slice(0, 2500));
+
+    const playerMove = replyPuzzle.moves[1];
+    const opponentReply = replyPuzzle.moves[2];
+    assert(playerMove && opponentReply, "Warm-up multi-ply Puzzle has no automatic reply");
+    const beforeMove = (await pageState()).text.slice(0, 2500);
+    await dragAt(
+      `[data-square="${playerMove.slice(0, 2)}"]`,
+      `[data-square="${playerMove.slice(2, 4)}"]`,
+      `drag chessboard piece ${playerMove.slice(0, 2)}-${playerMove.slice(2, 4)}`,
+    );
+    recordAction(`Drag ${playerMove.slice(0, 2)}-${playerMove.slice(2, 4)}`, "chessboard pointer drag", beforeMove, (await pageState()).text.slice(0, 2500), { uci: playerMove });
+
+    async function inspectPiece(pieceType, square) {
+      const suffix = JSON.stringify(`-piece-${pieceType}-${square}`);
+      return evaluate(`(() => {
+        const element = Array.from(document.querySelectorAll("[data-piece]")).find(candidate => candidate.id.endsWith(${suffix}));
+        return element ? { id: element.id, transition: element.style.transition, transform: element.style.transform } : null;
+      })()`);
+    }
+
+    async function activePieceAnimation(pieceType, square) {
+      return waitFor(async () => {
+        const piece = await inspectPiece(pieceType, square);
+        return piece?.transition.includes("250ms") && piece.transform.includes("translate") ? piece : undefined;
+      }, `${pieceType} on ${square} to animate`, 5_000);
+    }
+
+    async function droppedPiecePlacement(pieceType, square) {
+      return waitFor(async () => {
+        const piece = await inspectPiece(pieceType, square);
+        return piece ?? undefined;
+      }, `${pieceType} to settle on ${square}`, 220);
+    }
+
+    const droppedPiece = await droppedPiecePlacement("bR", playerMove.slice(2, 4));
+    assert(!droppedPiece.transition && !droppedPiece.transform, "An accepted drag should stay at its destination without replaying the move");
+    const replyBeforePlayerFinishes = await evaluate(`(() => {
+      const piece = Array.from(document.querySelectorAll('[data-piece="wK"]')).find(candidate => candidate.id.endsWith("-piece-wK-${opponentReply.slice(0, 2)}"));
+      return piece ? { transition: piece.style.transition, transform: piece.style.transform } : null;
+    })()`);
+    assert(replyBeforePlayerFinishes && !replyBeforePlayerFinishes.transition && !replyBeforePlayerFinishes.transform, "The automatic reply should wait after the player's drag is placed");
+    recordAction("Place dragged player piece before reply", `[data-piece="bR"] at ${playerMove.slice(2, 4)}`, beforeMove, JSON.stringify({ droppedPiece, replyBeforePlayerFinishes }));
+
+    const replyAnimation = await activePieceAnimation("wK", opponentReply.slice(0, 2));
+    await capture("40-trainer-opponent-reply-animation");
+    const db = await readTrainerDb();
+    const warmupRecord = db.sets.find((record) => record.set?.id === demoSet.id);
+    const run = db.runs.find((candidate) => candidate.setId === warmupRecord?.set.id && candidate.status === "active");
+    assert(run?.currentPuzzleIndex === 1 && run.currentPuzzle.kind === "playing" && run.currentPuzzle.moveIndex === 3, "Warm-up Run did not persist the position after the automatic reply");
+    recordAction("Animate automatic reply", `[data-piece="wK"] from ${opponentReply.slice(0, 2)}`, "Player piece is at its destination", JSON.stringify(replyAnimation), { currentMoveIndex: run.currentPuzzle.moveIndex });
+    results.autoReplyAnimation = { runId: run.id, puzzleId: replyPuzzle.id, moveIndex: run.currentPuzzle.moveIndex };
   }
 
   async function driveTrainerRun(openHistory) {
@@ -644,6 +767,7 @@ async function main() {
       await capture("50-trainer-history-navigation");
     } else {
       await capture("30-trainer-run-summary");
+      await verifyAutomaticReplyAnimation();
     }
     results.run = { name, runId: run.id, status: run.status, resultStatus: run.results[0].status, indexedDbRunCount: db.runs.length };
   }

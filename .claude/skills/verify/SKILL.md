@@ -33,7 +33,7 @@ When startup or a journey looks wrong, rerun the same feature command to get a f
 
 ## Drive
 
-The browser driver is `.claude/skills/verify/scripts/drive.mjs`. It uses Chrome DevTools Protocol through Node.js WebSocket, resolves controls by visible names or stable selectors, and performs real browser clicks, text entry, downloads, file selection, and chessboard square clicks. It waits for downloaded JSON to parse before recording the file. The board squares use `data-square` handles from `react-chessboard`.
+The browser driver is `.claude/skills/verify/scripts/drive.mjs`. It uses Chrome DevTools Protocol through Node.js WebSocket, resolves controls by visible names or stable selectors, and performs real browser clicks, text entry, downloads, file selection, chessboard square clicks, and piece drags. It waits for downloaded JSON to parse before recording the file. The board squares use `data-square` handles from `react-chessboard`.
 
 Read the matching feature file for preconditions and proof criteria:
 
