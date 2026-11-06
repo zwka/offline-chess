@@ -1,6 +1,6 @@
 # Offline Chess Suite
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
