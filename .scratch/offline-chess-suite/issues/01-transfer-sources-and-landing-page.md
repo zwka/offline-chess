@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] All three Source Apps are imported into the Suite repository via `git subtree` with full commit history preserved, and the original Source App repositories have zero uncommitted or new commits.
-- [ ] The Suite pins Node 24.11.1 and provides a root build and preview workflow that outputs the Landing Page at the root of the assembled distribution directory.
-- [ ] A newly generated Suite icon (neon line-art chess knight on an indigo-to-plum rounded square with wood-grain curves, sparkles, and coral-orange glow) is exported in 32×32, 180×180, 192×192, 512×512, and 512×512 maskable PNG sizes and wired as the Landing Page favicon and Apple touch icon.
-- [ ] The Landing Page renders a header with the title "Offline Chess" and a Sun/Moon icon button that toggles only between `dark` and `light`, defaulting to `dark` on a fresh browser profile and persisting the selection under the shared Suite Theme storage key.
-- [ ] The Landing Page displays four cards in the exact order: Blind Chess, PGN Reader, Woodpecker Generator, and Woodpecker Trainer, each showing its existing neon Tool icon, title, and one-line description, and linking to its respective flat subpath in the same window.
-- [ ] An automated Suite browser E2E test verifies that the Landing Page loads in dark mode by default, toggles between dark and light cleanly across reloads, and renders all four Tool cards with their icons and target links.
+- [x] All three Source Apps are imported into the Suite repository via `git subtree` with full commit history preserved, and the original Source App repositories have zero uncommitted or new commits.
+- [x] The Suite pins Node 24.11.1 and provides a root build and preview workflow that outputs the Landing Page at the root of the assembled distribution directory.
+- [x] A newly generated Suite icon (neon line-art chess knight on an indigo-to-plum rounded square with wood-grain curves, sparkles, and coral-orange glow) is exported in 32×32, 180×180, 192×192, 512×512, and 512×512 maskable PNG sizes and wired as the Landing Page favicon and Apple touch icon.
+- [x] The Landing Page renders a header with the title "Offline Chess" and a Sun/Moon icon button that toggles only between `dark` and `light`, defaulting to `dark` on a fresh browser profile and persisting the selection under the shared Suite Theme storage key.
+- [x] The Landing Page displays four cards in the exact order: Blind Chess, PGN Reader, Woodpecker Generator, and Woodpecker Trainer, each showing its existing neon Tool icon, title, and one-line description, and linking to its respective flat subpath in the same window.
+- [x] An automated Suite browser E2E test verifies that the Landing Page loads in dark mode by default, toggles between dark and light cleanly across reloads, and renders all four Tool cards with their icons and target links.
