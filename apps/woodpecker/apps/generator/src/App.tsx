@@ -6,6 +6,7 @@ import {
   Download,
   Filter,
   Moon,
+  Play,
   RefreshCw,
   Sparkles,
   Sun,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   createPuzzleSet,
+  enqueuePuzzleSetHandoff,
   parsePuzzleJsonl,
   selectPuzzlesFromStream,
   type PuzzleIndexManifest,
@@ -156,6 +158,38 @@ function App() {
 
   function randomizeSeed() {
     setSeed(globalThis.crypto.randomUUID().slice(0, 12));
+  }
+
+  function resolveNamedGeneratedSet(): PuzzleSet | null {
+    if (!generatedSet) return null;
+    const trimmedName = setName.trim();
+    if (trimmedName.length === 0) {
+      setNotice({ kind: "error", text: "Give the Puzzle Set a name before exporting." });
+      return null;
+    }
+    if (trimmedName === generatedSet.name) {
+      return generatedSet;
+    }
+    const updatedSet = { ...generatedSet, name: trimmedName };
+    setGeneratedSet(updatedSet);
+    return updatedSet;
+  }
+
+  function handleExportJson() {
+    const namedSet = resolveNamedGeneratedSet();
+    if (!namedSet) return;
+    downloadPuzzleSet(namedSet);
+  }
+
+  async function handleDoPuzzles() {
+    const namedSet = resolveNamedGeneratedSet();
+    if (!namedSet) return;
+    try {
+      await enqueuePuzzleSetHandoff(namedSet);
+      window.location.assign(TRAINER_URL);
+    } catch {
+      setNotice({ kind: "error", text: "Could not hand off the Puzzle Set to Trainer." });
+    }
   }
 
   async function generate() {
@@ -327,9 +361,18 @@ function App() {
             <div className="workspace-heading">
               <div>
                 <p className="eyebrow">02 / Output</p>
-                <h2>{generatedSet ? generatedSet.name : "Your set will appear here"}</h2>
+                <h2>{generatedSet ? (setName.trim() || generatedSet.name) : "Your set will appear here"}</h2>
               </div>
-              {generatedSet && <button className="primary-button compact" type="button" onClick={() => downloadPuzzleSet(generatedSet)}><Download size={16} /> Export JSON</button>}
+              {generatedSet && (
+                <div className="workspace-actions">
+                  <button className="primary-button compact" type="button" onClick={() => void handleDoPuzzles()}>
+                    <Play size={16} /> Do Puzzles
+                  </button>
+                  <button className="secondary-button compact" type="button" onClick={handleExportJson}>
+                    <Download size={16} /> Export JSON
+                  </button>
+                </div>
+              )}
             </div>
 
             {!generatedSet ? (

@@ -41,6 +41,7 @@ import {
   type Run,
 } from "@offline-woodpecker/domain";
 import {
+  consumePendingPuzzleSetHandoff,
   exportTrainerBackup,
   importPuzzleSet,
   loadTrainerData,
@@ -246,6 +247,21 @@ function App() {
           window.localStorage.setItem("woodpecker-demo-seeded", "true");
         } else if (next.sets.length > 0) {
           window.localStorage.setItem("woodpecker-demo-seeded", "true");
+        }
+        try {
+          const handoff = await consumePendingPuzzleSetHandoff(next);
+          if (handoff) {
+            next = handoff.data;
+            window.localStorage.setItem("woodpecker-demo-seeded", "true");
+            if (!cancelled) {
+              setData(next);
+              setSelectedRunId(handoff.run.id);
+              setView("solve");
+            }
+            return;
+          }
+        } catch {
+          if (!cancelled) setNotice("The handed-off Puzzle Set could not be loaded.");
         }
         if (!cancelled) setData(next);
       } catch {
