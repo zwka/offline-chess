@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Transfer Source Apps and bootstrap the Suite Landing Page
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] The root Suite build compiles Blind Chess and places its static assets under `/blind-chess/` with all asset references resolving cleanly from that subpath.
-- [ ] Blind Chess uses the shared Suite Theme storage key, defaults to `dark` when no valid preference is saved, removes the `system` Theme option, and renders the consistent Sun/Moon icon toggle button in its header.
-- [ ] Toggling the Theme on the Landing Page and navigating to Blind Chess (or toggling inside Blind Chess and returning via browser back navigation) preserves the selected Theme across both surfaces.
-- [ ] Blind Chess references the Suite favicon and Apple touch icon and no longer links a standalone web manifest or registers its own service worker.
-- [ ] All existing Blind Chess unit tests pass (with Theme preference tests updated for the two-state dark-default contract), and the Suite E2E test verifies launching Blind Chess from the Landing Page, sharing the Theme, and completing a drill interaction.
+- [x] The root Suite build compiles Blind Chess and places its static assets under `/blind-chess/` with all asset references resolving cleanly from that subpath.
+- [x] Blind Chess uses the shared Suite Theme storage key, defaults to `dark` when no valid preference is saved, removes the `system` Theme option, and renders the consistent Sun/Moon icon toggle button in its header.
+- [x] Toggling the Theme on the Landing Page and navigating to Blind Chess (or toggling inside Blind Chess and returning via browser back navigation) preserves the selected Theme across both surfaces.
+- [x] Blind Chess references the Suite favicon and Apple touch icon and no longer links a standalone web manifest or registers its own service worker.
+- [x] All existing Blind Chess unit tests pass (with Theme preference tests updated for the two-state dark-default contract), and the Suite E2E test verifies launching Blind Chess from the Landing Page, sharing the Theme, and completing a drill interaction.
