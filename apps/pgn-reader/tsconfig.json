@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "benchmarks/**/*.ts",
+    "tests-ts/**/*.ts",
+    "tests/mobile/**/*.ts",
+    "playwright.config.ts",
+    "playwright.mobile.config.ts"
+  ]
+}

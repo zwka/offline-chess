@@ -1,0 +1,10 @@
+data/
+.DS_Store
+library/
+node_modules/
+playwright-report/
+test-results/
+mobile/dist/
+.benchmark-scan-*/
+.artifacts/
+.offline-pgn-reader/

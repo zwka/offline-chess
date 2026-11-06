@@ -1,0 +1,33 @@
+---
+status: superseded by ADR-0002
+---
+
+# Full TypeScript Migration Architecture
+
+> Superseded by ADR-0002: the Python rollback/oracle runtime described here was
+> temporary migration-era behavior and is no longer part of the repository.
+
+This record describes the migration while it was in progress. The application
+replaced the Python production runtime with an npm-managed Node.js and
+TypeScript server while retaining the vanilla browser JavaScript reader and the
+single-process localhost experience. It kept the existing SQLite library
+readable. The migration was behavior-first and incremental: its required deep
+modules were the external wire model, PGN source scanner, GameDocument
+hydration, index persistence, scan coordination, and reader projection. Python
+was retained as the rollback runtime and compatibility oracle until the shared
+parity gate passed; ADR-0002 records its subsequent removal.
+
+## Considered Options
+
+- Keep the Python backend and migrate only the browser: rejected because the goal was a full runtime migration; the delivered reader intentionally remains vanilla browser JavaScript without a framework or build step.
+- Perform a big-bang rewrite: rejected because scanner, hydration, persistence, and wire behavior have high compatibility risk.
+- Use a frontend framework or a package-level monorepo: rejected for this migration because the current vanilla reader and single-context repository do not require either change.
+
+## Consequences
+
+- Node.js LTS, Fastify, TypeBox/JSON Schema, better-sqlite3, worker threads, Vitest, and Playwright become part of the application toolchain; the vanilla browser frontend remains build-free.
+- Existing HTTP routes, wire casing, SQLite schema version 1, source-byte offsets, ordered tag pairs, and flat GameDocument node IDs remain compatibility contracts.
+- During the migration, Python and TypeScript used separate fixture databases
+  during comparison. The parity, browser, and integration checks passed; the
+  Python rollback runtime and compatibility oracle were then removed, while the
+  production server and SQLite Index remained owned by TypeScript.
