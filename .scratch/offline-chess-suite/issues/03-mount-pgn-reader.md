@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Transfer Source Apps and bootstrap the Suite Landing Page
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] The root Suite build compiles PGN Reader's browser build and places it under `/pgn-reader/` with all scripts, stylesheets, piece SVGs, and web workers loading cleanly from that subpath.
 - [ ] PGN Reader adopts the Suite's light and dark color tokens, header styling, Inter font stack, and Woodpecker Trainer's light/dark chessboard square colors (`#e8d6bd` and `#9a6b4d`).

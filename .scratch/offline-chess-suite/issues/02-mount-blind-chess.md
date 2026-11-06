@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Transfer Source Apps and bootstrap the Suite Landing Page
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] The root Suite build compiles Blind Chess and places its static assets under `/blind-chess/` with all asset references resolving cleanly from that subpath.
 - [ ] Blind Chess uses the shared Suite Theme storage key, defaults to `dark` when no valid preference is saved, removes the `system` Theme option, and renders the consistent Sun/Moon icon toggle button in its header.

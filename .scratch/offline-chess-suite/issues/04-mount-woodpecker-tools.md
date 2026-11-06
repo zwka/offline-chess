@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Transfer Source Apps and bootstrap the Suite Landing Page
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] The root Suite build compiles Woodpecker Generator under `/woodpecker-generator/` and Woodpecker Trainer under `/woodpecker-trainer/`, with all asset, demo Puzzle Set, and puzzle-index URLs resolving relative to each Tool's subpath.
 - [ ] Both Woodpecker Generator and Woodpecker Trainer use the shared Suite Theme key, default to `dark` when no preference is stored, remove the `system` option, and render the consistent Sun/Moon header icon toggle.
