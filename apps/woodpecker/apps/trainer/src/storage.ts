@@ -1,5 +1,6 @@
 import {
   abandonRun,
+  consumePuzzleSetHandoff,
   createRun,
   normalizePuzzleSet,
   parseRun,
@@ -280,3 +281,44 @@ export async function importPuzzleSet(input: unknown, existing: TrainerData): Pr
   await savePuzzleSet(set, false);
   return { data: { ...existing, sets: [...existing.sets, { set, archived: false }] }, duplicate: false };
 }
+
+export async function consumePendingPuzzleSetHandoff(
+  existing: TrainerData,
+): Promise<{ data: TrainerData; run: ActiveRun } | null> {
+  const payload = await consumePuzzleSetHandoff();
+  if (!payload) return null;
+
+  const incoming = await normalizePuzzleSet(parsePuzzleSet(payload));
+  validatePuzzleSet(incoming);
+
+  const imported = await importPuzzleSet(incoming, existing);
+  let nextData = imported.data;
+  const targetRecord = nextData.sets.find((record) => record.set.contentHash === incoming.contentHash);
+  if (!targetRecord) {
+    throw new Error("Handed-off Puzzle Set was not found after import");
+  }
+
+  if (targetRecord.archived) {
+    await setArchived(targetRecord.set.id, false);
+    nextData = {
+      ...nextData,
+      sets: nextData.sets.map((record) =>
+        record.set.id === targetRecord.set.id ? { ...record, archived: false } : record,
+      ),
+    };
+  }
+
+  const existingActiveRun = nextData.runs.find(
+    (run): run is ActiveRun => run.setId === targetRecord.set.id && run.status === "active",
+  );
+  if (existingActiveRun) {
+    return { data: nextData, run: existingActiveRun };
+  }
+
+  const started = await startRunAtomically(targetRecord.set);
+  return {
+    data: { ...nextData, runs: started.runs },
+    run: started.run,
+  };
+}
+

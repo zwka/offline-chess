@@ -105,9 +105,13 @@ h3 { margin-bottom: 8px; font-size: 20px; }
 .icon-button { display: grid; place-items: center; border: 0; color: var(--muted); background: transparent; cursor: pointer; }
 .input-action { position: absolute; right: 5px; width: 31px; height: 31px; border-radius: 5px; }
 .icon-button:hover { color: var(--accent-strong); background: var(--accent-wash); }
-.primary-button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; border: 0; border-radius: 6px; min-height: 42px; padding: 0 15px; color: #fff; background: var(--accent-strong); font-size: 13px; font-weight: 800; cursor: pointer; transition: transform 160ms ease, background 160ms ease; }
+.primary-button, .secondary-button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; border-radius: 6px; min-height: 42px; padding: 0 15px; font-size: 13px; font-weight: 800; cursor: pointer; transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease; }
+.primary-button { border: 0; color: #fff; background: var(--accent-strong); }
 .primary-button:hover:not(:disabled) { background: var(--accent); transform: translateY(-1px); }
 .primary-button:disabled { cursor: wait; opacity: 0.55; }
+.secondary-button { border: 1px solid var(--line-strong); color: var(--ink); background: var(--surface); }
+.secondary-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-wash); }
+.workspace-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .generate-button { width: 100%; margin-top: 28px; }
 .compact { min-height: 37px; padding: 0 12px; font-size: 12px; }
 .spin { animation: spin 850ms linear infinite; }
