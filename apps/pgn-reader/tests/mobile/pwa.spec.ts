@@ -2,87 +2,62 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const requiredCachedAssets = [
+const requiredStaticAssets = [
   "/index.html",
   "/mobile.css",
-  "/manifest.webmanifest",
-  "/service-worker.js",
   "/dist/mobile/app.js",
   "/dist/mobile/scan-worker.js",
   "/dist/vendor/chess.js",
   "/dist/vendor/pgn.js",
   "/pieces/wK.svg",
   "/pieces/bK.svg",
+  "/favicon-32.png",
+  "/apple-touch-icon.png",
   "/icons/icon-32.png",
   "/icons/icon-180.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
 
-test("publishes install metadata and precaches the complete mobile build", async ({ page }) => {
+test("serves the complete static mobile build with Suite icons and no standalone manifest or per-Tool service worker", async ({ page }) => {
   const healthResponse = await page.request.get("/api/health");
   expect(healthResponse.status()).toBe(404);
 
   const manifestResponse = await page.request.get("/manifest.webmanifest");
-  expect(manifestResponse.ok()).toBe(true);
-  expect(manifestResponse.headers()["content-type"]).toMatch(
-    /^application\/manifest\+json(?:\s*;|$)/i,
-  );
-  const manifest = await manifestResponse.json();
-  expect(manifest).toMatchObject({
-    name: "PGN Reader Mobile",
-    short_name: "PGN Reader",
-    description: "Retain multiple PGN sources and read them offline.",
-    start_url: "./",
-    scope: "./",
-    display: "standalone",
-    theme_color: "#18211f",
-    background_color: "#f3f6f2",
-  });
-  expect(manifest.icons).toEqual(expect.arrayContaining([
-    expect.objectContaining({ src: "./icons/icon-192.png", sizes: "192x192", type: "image/png" }),
-    expect.objectContaining({ src: "./icons/icon-512.png", sizes: "512x512", type: "image/png" }),
-  ]));
+  expect(manifestResponse.status()).toBe(404);
 
   const workerResponse = await page.request.get("/service-worker.js");
-  expect(workerResponse.ok()).toBe(true);
-  const workerSource = await workerResponse.text();
-  expect(workerSource).toContain('const CACHE_NAME = "offline-pgn-reader-mobile-v7"');
-  expect(workerSource).toContain("self.skipWaiting()");
-  expect(workerSource).toContain("self.clients.claim()");
-  expect(workerSource).toContain("caches.delete(key)");
-  expect(workerSource).not.toContain("indexedDB");
-  for (const asset of requiredCachedAssets.slice(1)) {
-    expect(workerSource).toContain(`".${asset}"`);
+  expect(workerResponse.status()).toBe(404);
+
+  for (const asset of requiredStaticAssets) {
+    const response = await page.request.get(asset);
+    expect(response.ok(), `expected ${asset} to return 200`).toBe(true);
   }
 
   await page.goto("/");
-  await waitForControlledServiceWorker(page);
   await expect(page).toHaveTitle("PGN Reader Mobile");
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "./icons/icon-32.png");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#172321");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-32.png");
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
   await expect(page.locator("#source-input")).toBeVisible();
   await expect(page.locator("#source-status")).toHaveText("idle");
-  const cacheState = await page.evaluate(async () => {
-    const names = await caches.keys();
-    const name = names.find((candidate) => candidate.startsWith("offline-pgn-reader-mobile-"));
-    if (!name) throw new Error("mobile precache was not installed");
-    const requests = await (await caches.open(name)).keys();
-    return {
-      name,
-      paths: requests.map((request) => new URL(request.url).pathname),
-    };
+
+  const registrations = await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) return [];
+    const regs = await navigator.serviceWorker.getRegistrations();
+    return regs.map((r) => r.scope);
   });
-  expect(cacheState.name).toBe("offline-pgn-reader-mobile-v7");
-  expect(cacheState.paths).toEqual(expect.arrayContaining(requiredCachedAssets));
+  expect(registrations).toEqual([]);
 });
 
-test("restores the persisted reader with network disabled", async ({ page }) => {
+test("restores the persisted reader across reloads without API requests", async ({ page }) => {
   const pageErrors: string[] = [];
   const blockedRequests: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
-  await waitForControlledServiceWorker(page);
   await page.locator("#source-input").setInputFiles({
     name: "offline-reader.pgn",
     mimeType: "application/x-chess-pgn",
@@ -92,8 +67,7 @@ test("restores the persisted reader with network disabled", async ({ page }) => 
   await expect(page.locator("#record-list .game-record")).toHaveCount(4);
 
   const webkit = isWebKit(page);
-  if (!webkit) await page.context().setOffline(true);
-  await page.route("**/*", (route) => {
+  await page.route("**/api/**", (route) => {
     blockedRequests.push(route.request().url());
     return route.abort();
   });
@@ -131,8 +105,7 @@ test("restores the persisted reader with network disabled", async ({ page }) => 
     await expect(page.locator(".reader-title")).toContainText("Tree - Builder");
     expect(await page.locator(".variation").count()).toBeGreaterThan(0);
   } finally {
-    await page.unroute("**/*");
-    await page.context().setOffline(false);
+    await page.unroute("**/api/**");
   }
 
   expect(blockedRequests).toEqual([]);
@@ -245,13 +218,12 @@ test("migrates a v1 one-source IndexedDB record without losing its Game record",
   });
 });
 
-test("retains each source and reads the selected source offline", async ({ page }) => {
+test("retains each source and reads the selected source across reloads", async ({ page }) => {
   const pageErrors: string[] = [];
   const blockedRequests: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
-  await waitForControlledServiceWorker(page);
   await page.locator("#source-input").setInputFiles({
     name: "offline-first.pgn",
     mimeType: "application/x-chess-pgn",
@@ -268,9 +240,7 @@ test("retains each source and reads the selected source offline", async ({ page 
   await expect(page.locator("#source-name")).toHaveText("offline-first.pgn");
   await expect(page.locator("#reader-panel")).toBeHidden();
 
-  const webkit = isWebKit(page);
-  if (!webkit) await page.context().setOffline(true);
-  await page.route("**/*", (route) => {
+  await page.route("**/api/**", (route) => {
     blockedRequests.push(route.request().url());
     return route.abort();
   });
@@ -292,8 +262,7 @@ test("retains each source and reads the selected source offline", async ({ page 
     await page.getByRole("button", { name: "Raw PGN source" }).click();
     await expect(page.locator(".raw-source")).toContainText('[Event "Offline Second"]');
   } finally {
-    await page.unroute("**/*");
-    await page.context().setOffline(false);
+    await page.unroute("**/api/**");
   }
 
   expect(blockedRequests).toEqual([]);
@@ -338,16 +307,14 @@ test("keeps the retained snapshot when adding a source exceeds browser storage",
   await expect(page.locator("#source-list .source-select-name")).toHaveText(["quota-first.pgn"]);
 });
 
-test("keeps an empty Mobile Library usable offline", async ({ page }) => {
+test("keeps an empty Mobile Library usable across reloads", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
-  await waitForControlledServiceWorker(page);
   const webkit = isWebKit(page);
   const blockedRequests: string[] = [];
-  if (!webkit) await page.context().setOffline(true);
-  await page.route("**/*", (route) => {
+  await page.route("**/api/**", (route) => {
     blockedRequests.push(route.request().url());
     return route.abort();
   });
@@ -361,21 +328,12 @@ test("keeps an empty Mobile Library usable offline", async ({ page }) => {
     await expect(page.locator("#record-list .game-record")).toHaveCount(0);
     await expect(page.locator("#source-error")).toBeHidden();
   } finally {
-    await page.unroute("**/*");
-    await page.context().setOffline(false);
+    await page.unroute("**/api/**");
   }
 
   expect(blockedRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
-
-async function waitForControlledServiceWorker(page: import("@playwright/test").Page): Promise<void> {
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload();
-  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-}
 
 async function verifyOfflineStartup(page: import("@playwright/test").Page): Promise<void> {
   if (isWebKit(page)) {

@@ -31,4 +31,6 @@ export function registerMobileStaticRoutes({
     prefix: "/",
   });
   app.get("/", async (_request, reply) => reply.sendFile("index.html"));
+  app.get("/favicon-32.png", async (_request, reply) => reply.sendFile("icons/icon-32.png"));
+  app.get("/apple-touch-icon.png", async (_request, reply) => reply.sendFile("icons/icon-180.png"));
 }
