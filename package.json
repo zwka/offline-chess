@@ -1,0 +1,20 @@
+{
+  "name": "offline-chess",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.11.1"
+  },
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview-server.mjs",
+    "test:e2e": "playwright test --config=playwright.config.ts",
+    "test": "npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "sharp": "^0.33.5"
+  }
+}
