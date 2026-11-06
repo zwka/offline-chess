@@ -4,7 +4,7 @@
 
 **Blocked by:** 06: Suite PWA manifest, single root service worker, and offline precaching
 
-**Status:** resolved
+Status: resolved
 
 - [x] Running `./offline-chess --install-mobile` installs dependencies if needed, builds the complete Suite, starts the local static preview server, opens a `cloudflared` HTTPS Quick Tunnel, and prints the public HTTPS URL for Android Chrome installation (reusing a healthy running instance when invoked repeatedly).
 - [x] Running `./offline-chess --shutdown` cleanly stops both the preview server and the `cloudflared` tunnel process and cleans up state files.

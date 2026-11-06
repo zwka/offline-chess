@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   applyTheme,
   readThemePreference,
@@ -12,6 +12,20 @@ export function useThemePreference() {
   useLayoutEffect(() => {
     applyTheme(preference);
   }, [preference]);
+
+  useEffect(() => {
+    const syncTheme = () => {
+      const latest = readThemePreference();
+      setPreferenceState(latest);
+      applyTheme(latest);
+    };
+    window.addEventListener("pageshow", syncTheme);
+    window.addEventListener("storage", syncTheme);
+    return () => {
+      window.removeEventListener("pageshow", syncTheme);
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
 
   const setPreference = (next: ThemePreference) => {
     setPreferenceState(next);

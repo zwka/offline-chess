@@ -25,10 +25,10 @@ describe("Generator Suite integration metadata", () => {
     expect(html).toContain('<meta name="theme-color" content="#172321" />');
   });
 
-  it("removes standalone web manifest and per-Tool service worker registration", () => {
+  it("removes standalone web manifest and registers the root Suite service worker", () => {
     expect(html).not.toContain('rel="manifest"');
     expect(existsSync(new URL("../public/manifest.webmanifest", import.meta.url))).toBe(false);
     expect(existsSync(new URL("../public/sw.js", import.meta.url))).toBe(false);
-    expect(mainSource).not.toContain("serviceWorker.register");
+    expect(mainSource).toContain('navigator.serviceWorker.register("/sw.js", { scope: "/" })');
   });
 });

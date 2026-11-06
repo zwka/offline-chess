@@ -6,8 +6,15 @@ import "./styles.css";
 
 applyTheme(readThemePreference());
 
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+    // Ignore service worker registration errors in unsupported contexts.
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
   </StrictMode>
 );
+

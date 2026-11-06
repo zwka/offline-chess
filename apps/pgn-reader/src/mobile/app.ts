@@ -70,6 +70,14 @@ function applyTheme(nextTheme: Theme, persist = true): void {
 
 applyTheme(theme, false);
 themeToggle.addEventListener("click", () => applyTheme(theme === "dark" ? "light" : "dark"));
+window.addEventListener("pageshow", () => applyTheme(readTheme() ?? "dark", false));
+window.addEventListener("storage", () => applyTheme(readTheme() ?? "dark", false));
+
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+    // Ignore service worker registration errors in unsupported contexts.
+  });
+}
 
 const library: MobileLibrary = new PersistentMobileLibrary(() =>
   new Worker(new URL("./scan-worker.js", import.meta.url), { type: "module" }) as unknown as MobileScanWorker,

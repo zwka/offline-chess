@@ -28,10 +28,14 @@ import {
 import {
   completePuzzle,
   continuePuzzle,
+  DARK_THEME_COLOR,
+  LIGHT_THEME_COLOR,
   markPuzzleError,
   nextAfterPuzzle,
   normalizePuzzleSet,
   parsePuzzleSet,
+  persistSuiteTheme,
+  readSuiteTheme,
   revealPuzzleSolution,
   retryPuzzle,
   scoreRun,
@@ -39,6 +43,7 @@ import {
   type PuzzleResult,
   type PuzzleSet,
   type Run,
+  type ThemeChoice,
 } from "@offline-woodpecker/domain";
 import {
   consumePendingPuzzleSetHandoff,
@@ -56,12 +61,8 @@ import {
 } from "./storage";
 import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePosition, solutionLine } from "./puzzle-session";
 
-type ThemeChoice = "light" | "dark";
 type View = "library" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
-const THEME_KEY = "offline-chess.theme.v1";
-const DARK_THEME_COLOR = "#172321";
-const LIGHT_THEME_COLOR = "#f4f0e7";
 const GENERATOR_URL = import.meta.env.VITE_GENERATOR_URL ?? "/woodpecker-generator/";
 const MOVE_ANIMATION_DURATION_MS = 250;
 
@@ -79,17 +80,8 @@ const PROMOTION_CHOICES: Array<{ value: PromotionChoice; label: string }> = [
   { value: "n", label: "Knight" },
 ];
 
-function readTheme(): ThemeChoice {
-  try {
-    const stored = window.localStorage.getItem(THEME_KEY);
-    return stored === "light" || stored === "dark" ? stored : "dark";
-  } catch {
-    return "dark";
-  }
-}
-
 function useTheme() {
-  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
+  const [theme, setTheme] = useState<ThemeChoice>(readSuiteTheme);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -100,7 +92,7 @@ function useTheme() {
   }, [theme]);
 
   useEffect(() => {
-    const sync = () => setTheme(readTheme());
+    const sync = () => setTheme(readSuiteTheme());
     window.addEventListener("pageshow", sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -112,11 +104,7 @@ function useTheme() {
   function toggleTheme() {
     const next: ThemeChoice = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    try {
-      window.localStorage.setItem(THEME_KEY, next);
-    } catch {
-      // Ignore storage failures so the active session still reflects the selected theme.
-    }
+    persistSuiteTheme(next);
   }
 
   return { theme, toggleTheme };

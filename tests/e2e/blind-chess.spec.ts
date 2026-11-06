@@ -32,6 +32,7 @@ test.describe("Blind Chess Tool (/blind-chess/)", () => {
     await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-32.png");
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Install/i })).toHaveCount(0);
 
     const registrations = await page.evaluate(async () => {
       if (!("serviceWorker" in navigator)) return [];

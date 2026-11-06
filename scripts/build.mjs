@@ -153,30 +153,24 @@ function createHeadResponse(response) {
 }
 
 async function fromCache(request) {
-  const url = new URL(request.url);
-  const lookupUrl = new URL(url.pathname, self.location.origin).href;
-  const cacheRequest = new Request(lookupUrl, { method: "GET" });
+  const matchCachedUrl = async (urlOrPath) => {
+    const resolved = new URL(urlOrPath, self.location.origin);
+    return (
+      (await caches.match(new Request(resolved.href, { method: "GET" }), { ignoreVary: true })) ??
+      (await caches.match(resolved.pathname, { ignoreVary: true }))
+    );
+  };
 
-  let cached =
-    (await caches.match(cacheRequest, { ignoreVary: true })) ??
-    (await caches.match(url.pathname, { ignoreVary: true }));
+  const url = new URL(request.url);
+  let cached = await matchCachedUrl(url.pathname);
 
   if (!cached && url.pathname.endsWith("/")) {
-    const indexPath = \`\${url.pathname}index.html\`;
-    const indexUrl = new URL(indexPath, self.location.origin).href;
-    cached =
-      (await caches.match(new Request(indexUrl, { method: "GET" }), { ignoreVary: true })) ??
-      (await caches.match(indexPath, { ignoreVary: true }));
+    cached = await matchCachedUrl(\`\${url.pathname}index.html\`);
   }
 
   if (!cached && (request.mode === "navigate" || request.destination === "document")) {
     const shellPath = resolveNavigationShell(url.pathname);
-    const shellUrl = new URL(shellPath, self.location.origin).href;
-    cached =
-      (await caches.match(new Request(shellUrl, { method: "GET" }), { ignoreVary: true })) ??
-      (await caches.match(shellPath, { ignoreVary: true })) ??
-      (await caches.match(new Request(new URL("/", self.location.origin).href, { method: "GET" }), { ignoreVary: true })) ??
-      (await caches.match("/", { ignoreVary: true }));
+    cached = (await matchCachedUrl(shellPath)) ?? (await matchCachedUrl("/"));
   }
 
   if (!cached) return undefined;

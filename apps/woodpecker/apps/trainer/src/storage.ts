@@ -6,6 +6,8 @@ import {
   parseRun,
   parsePuzzleSet,
   parseTrainerBackup,
+  requestValue,
+  transactionComplete,
   type PuzzleSet,
   type ActiveRun,
   type Run,
@@ -35,21 +37,6 @@ function runMatchesSet(run: Run, set: PuzzleSet): boolean {
   if (run.currentPuzzleIndex >= set.puzzles.length) return false;
   const puzzle = set.puzzles[run.currentPuzzleIndex];
   return run.currentPuzzle.kind === "completed-after-error" || run.currentPuzzle.moveIndex < puzzle.moves.length;
-}
-
-function requestValue<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
-  });
-}
-
-function transactionComplete(transaction: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
-  });
 }
 
 function openDatabase(): Promise<IDBDatabase> {

@@ -42,6 +42,14 @@ function applyTheme(nextTheme, persist = false) {
 
 applyTheme(currentTheme, false);
 
+window.addEventListener("pageshow", () => {
+  applyTheme(readTheme(), false);
+});
+
+window.addEventListener("storage", () => {
+  applyTheme(readTheme(), false);
+});
+
 if (themeToggle) {
   themeToggle.addEventListener("click", () => {
     applyTheme(currentTheme === "dark" ? "light" : "dark", true);

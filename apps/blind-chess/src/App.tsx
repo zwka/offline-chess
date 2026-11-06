@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BookOpen,
   Check,
-  Download,
   History as HistoryIcon,
   House,
   Moon,
@@ -56,17 +55,6 @@ import type {
 import { clearAttemptHistory, readAttempts, saveAttempt } from "./storage";
 import type { ThemePreference } from "./preferences";
 import { useThemePreference } from "./useThemePreference";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-}
-
-declare global {
-  interface WindowEventMap {
-    beforeinstallprompt: BeforeInstallPromptEvent;
-  }
-}
 
 type Screen = "home" | "history" | "round" | "results";
 type ActiveRound = Exclude<RoundState, { kind: "idle" | "finished" }>;
@@ -377,8 +365,6 @@ function App() {
   const { preference: themePreference, setPreference: selectTheme } = useThemePreference();
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [ruleOpen, setRuleOpen] = useState(false);
-  const [installHelpOpen, setInstallHelpOpen] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [storageError, setStorageError] = useState(false);
 
   const updateRound = (next: RoundState) => {
@@ -400,15 +386,6 @@ function App() {
     updateRound(completed);
     setScreen("results");
   };
-
-  useEffect(() => {
-    const handleInstallPrompt = (event: BeforeInstallPromptEvent) => {
-      event.preventDefault();
-      setInstallPrompt(event);
-    };
-    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
-  }, []);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -634,17 +611,6 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [screen]);
 
-  const installApp = async () => {
-    if (installPrompt === null) {
-      setInstallHelpOpen(true);
-      return;
-    }
-
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-  };
-
   const clearHistory = () => {
     if (!window.confirm("Clear all saved attempts on this device?")) {
       return;
@@ -692,9 +658,6 @@ function App() {
               <House size={17} /> <span>Home</span>
             </button>
           )}
-          <button className="install-button" type="button" onClick={() => void installApp()}>
-            <Download size={16} /> <span>Install</span>
-          </button>
           <ThemeControl preference={themePreference} onChange={selectTheme} />
         </nav>
       </header>
@@ -963,16 +926,6 @@ function App() {
               <p>Use the coordinate in the question to locate its square on the board.</p>
             </div>
           )}
-        </Dialog>
-      )}
-
-      {installHelpOpen && (
-        <Dialog title="Install Offline Blind Chess" onClose={() => setInstallHelpOpen(false)}>
-          <div className="install-instructions">
-            <section><h3>Desktop or Android</h3><p>In Chrome, open the menu and choose <strong>Install app</strong> or <strong>Install page as app</strong>.</p></section>
-            <section><h3>iPhone</h3><p>In Chrome, tap <strong>Share</strong>, choose <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</p></section>
-            <p className="install-note">Open this app once while online so its files are available offline.</p>
-          </div>
         </Dialog>
       )}
     </div>

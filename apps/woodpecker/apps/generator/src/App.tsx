@@ -14,34 +14,25 @@ import {
 } from "lucide-react";
 import {
   createPuzzleSet,
+  DARK_THEME_COLOR,
   enqueuePuzzleSetHandoff,
+  LIGHT_THEME_COLOR,
   parsePuzzleJsonl,
+  persistSuiteTheme,
+  readSuiteTheme,
   selectPuzzlesFromStream,
   type PuzzleIndexManifest,
   type PuzzleSet,
   type PuzzleSetSelection,
+  type ThemeChoice,
 } from "@offline-woodpecker/domain";
 import { loadPuzzleIndex } from "./load-puzzle-index";
 
-type ThemeChoice = "light" | "dark";
-
-const THEME_KEY = "offline-chess.theme.v1";
-const DARK_THEME_COLOR = "#172321";
-const LIGHT_THEME_COLOR = "#f4f0e7";
 const FALLBACK_THEMES = ["advantage", "crushing", "endgame", "fork", "mate", "middlegame", "short"];
 const TRAINER_URL = import.meta.env.VITE_TRAINER_URL ?? "/woodpecker-trainer/";
 
-function readTheme(): ThemeChoice {
-  try {
-    const stored = window.localStorage.getItem(THEME_KEY);
-    return stored === "light" || stored === "dark" ? stored : "dark";
-  } catch {
-    return "dark";
-  }
-}
-
 function useTheme() {
-  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
+  const [theme, setTheme] = useState<ThemeChoice>(readSuiteTheme);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -52,7 +43,7 @@ function useTheme() {
   }, [theme]);
 
   useEffect(() => {
-    const sync = () => setTheme(readTheme());
+    const sync = () => setTheme(readSuiteTheme());
     window.addEventListener("pageshow", sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -64,11 +55,7 @@ function useTheme() {
   function toggleTheme() {
     const next: ThemeChoice = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    try {
-      window.localStorage.setItem(THEME_KEY, next);
-    } catch {
-      // Ignore storage failures so the active session still reflects the selected theme.
-    }
+    persistSuiteTheme(next);
   }
 
   return { theme, toggleTheme };

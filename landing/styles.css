@@ -63,7 +63,7 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-.suite-shell {
+.landing-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;

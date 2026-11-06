@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 const startupTimeoutMs = 60_000;
 const shutdownGraceMs = 1_500;
-const appMarkers = [
+const suiteMarkers = [
   "<title>Offline Chess</title>",
   'rel="manifest" href="/manifest.webmanifest"',
 ];
@@ -239,7 +239,7 @@ async function waitForPreview(processRecord, port, logPath) {
     const log = readLog(logPath);
     if (
       log.includes("Offline Chess preview server listening") &&
-      (await servesExpectedApp(`http://127.0.0.1:${port}`))
+      (await servesExpectedSuite(`http://127.0.0.1:${port}`))
     ) {
       return;
     }
@@ -266,12 +266,12 @@ function parseTunnelUrl(log) {
   return match?.[0];
 }
 
-async function servesExpectedApp(url) {
+async function servesExpectedSuite(url) {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
     if (!response.ok) return false;
     const html = await response.text();
-    return appMarkers.every((marker) => html.includes(marker));
+    return suiteMarkers.every((marker) => html.includes(marker));
   } catch {
     return false;
   }
@@ -281,8 +281,8 @@ async function isHealthySession(state) {
   if (!state.url || !state.preview || !state.tunnel) return false;
   if (!isOwnedGroupAlive(state.preview) || !isOwnedGroupAlive(state.tunnel)) return false;
   return (
-    (await servesExpectedApp(`http://127.0.0.1:${state.port}`)) &&
-    (await servesExpectedApp(state.url))
+    (await servesExpectedSuite(`http://127.0.0.1:${state.port}`)) &&
+    (await servesExpectedSuite(state.url))
   );
 }
 
@@ -451,7 +451,7 @@ function readLog(path) {
 }
 
 async function withWorkspaceLock(stateDirectory, operation) {
-  const lockPath = join(stateDirectory, "launcher.lock");
+  const lockPath = join(stateDirectory, "mobile-install.lock");
   const token = {
     pid: process.pid,
     startedAt: getProcessStartTime(process.pid) ?? String(Date.now()),
