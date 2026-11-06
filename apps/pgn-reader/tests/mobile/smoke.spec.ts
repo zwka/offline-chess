@@ -66,15 +66,19 @@ test("loads as a standalone static mobile client and imports one source", async 
 test("switches the mobile theme and restores it after reload", async ({ page }) => {
   await page.goto("/");
 
-  const toggle = page.getByRole("button", { name: "Switch to dark mode" });
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await toggle.click();
+  const toggle = page.getByRole("button", { name: "Switch to light mode" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#172321");
+  await toggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#f4f0e7");
+  expect(await page.evaluate(() => window.localStorage.getItem("offline-chess.theme.v1"))).toBe("light");
+  await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
 
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#f4f0e7");
+  await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
 });
 
 test("restores the persisted Mobile Library after reload and clears it", async ({ page }) => {
@@ -439,12 +443,12 @@ test("opens Game records in the local reader with annotations, FEN starts, and n
    await expect(page.locator('.board .sq[data-square="d4"] .csl')).toHaveCount(1);
    await expect(page.locator('.board .sq[data-square="e5"] .csl')).toHaveCount(1);
    await expect(page.locator(".board-arrows line")).toHaveCount(1);
-   const lightArrowColor = await page.locator(".board-arrows g").first()
-     .evaluate((element) => getComputedStyle(element).fill);
-   await page.getByRole("button", { name: "Switch to dark mode" }).click();
    const darkArrowColor = await page.locator(".board-arrows g").first()
      .evaluate((element) => getComputedStyle(element).fill);
-   expect(darkArrowColor).not.toBe(lightArrowColor);
+   await page.getByRole("button", { name: "Switch to light mode" }).click();
+   const lightArrowColor = await page.locator(".board-arrows g").first()
+     .evaluate((element) => getComputedStyle(element).fill);
+   expect(lightArrowColor).not.toBe(darkArrowColor);
    await expect(page.locator(".variation .mv").first()).toContainText("c5");
   await page.locator(".variation .mv").filter({ hasText: "c5" }).first().click();
   await expect(page.locator(".notation-body .mv.current")).toContainText("c5");

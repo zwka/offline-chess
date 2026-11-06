@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Mount Blind Chess at `/blind-chess/` with shared Suite Theme, 03: Mount PGN Reader at `/pgn-reader/` with Suite Theme and palette, 04: Mount Woodpecker Generator and Trainer with cross-links and shared Theme
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Only one web app manifest exists in the assembled Suite (`/manifest.webmanifest`), declaring "Offline Chess", standalone display, root `start_url` and `scope`, and the Suite's 192×192, 512×512, and 512×512 maskable icons.
 - [ ] A single Suite service worker registered at root scope (`/`) precaches the Landing Page and all four Tools on installation so that visiting `/` once while online caches every Tool's HTML shell, scripts, styles, icons, piece graphics, demo set, and sample puzzle index.

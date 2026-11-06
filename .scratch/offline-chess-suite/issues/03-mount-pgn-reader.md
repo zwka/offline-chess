@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Transfer Source Apps and bootstrap the Suite Landing Page
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] The root Suite build compiles PGN Reader's browser build and places it under `/pgn-reader/` with all scripts, stylesheets, piece SVGs, and web workers loading cleanly from that subpath.
-- [ ] PGN Reader adopts the Suite's light and dark color tokens, header styling, Inter font stack, and Woodpecker Trainer's light/dark chessboard square colors (`#e8d6bd` and `#9a6b4d`).
-- [ ] PGN Reader reads and writes the shared Suite Theme key, defaults to `dark` on a fresh browser profile, and uses the consistent Sun/Moon icon button in its header so Theme changes sync between the Landing Page and PGN Reader.
-- [ ] PGN Reader uses the Suite favicon and Apple touch icon and does not expose a standalone web manifest or register a per-Tool service worker in the Suite build.
-- [ ] PGN Reader's existing test suites pass with updated expectations for the Suite Theme/palette, and the Suite E2E test verifies navigating from the Landing Page to `/pgn-reader/`, syncing the Theme, and importing and viewing a PGN game.
+- [x] The root Suite build compiles PGN Reader's browser build and places it under `/pgn-reader/` with all scripts, stylesheets, piece SVGs, and web workers loading cleanly from that subpath.
+- [x] PGN Reader adopts the Suite's light and dark color tokens, header styling, Inter font stack, and Woodpecker Trainer's light/dark chessboard square colors (`#e8d6bd` and `#9a6b4d`).
+- [x] PGN Reader reads and writes the shared Suite Theme key, defaults to `dark` on a fresh browser profile, and uses the consistent Sun/Moon icon button in its header so Theme changes sync between the Landing Page and PGN Reader.
+- [x] PGN Reader uses the Suite favicon and Apple touch icon and does not expose a standalone web manifest or register a per-Tool service worker in the Suite build.
+- [x] PGN Reader's existing test suites pass with updated expectations for the Suite Theme/palette, and the Suite E2E test verifies navigating from the Landing Page to `/pgn-reader/`, syncing the Theme, and importing and viewing a PGN game.

@@ -8,8 +8,6 @@ import {
 } from "./library.js";
 import { renderMobileReader, type MobileReaderHandle } from "./reader.js";
 
-registerServiceWorker();
-
 const importPanel = getElement<HTMLElement>("import-panel");
 const sourcePanel = getElement<HTMLElement>("source-panel");
 const sourceList = getElement<HTMLElement>("source-list");
@@ -37,8 +35,10 @@ const themeToggle = getElement<HTMLButtonElement>("theme-toggle");
 const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
 
 type Theme = "light" | "dark";
-const THEME_KEY = "offline-pgn-reader-mobile-theme";
-let theme: Theme = readTheme() ?? "light";
+const THEME_KEY = "offline-chess.theme.v1";
+const DARK_THEME_COLOR = "#172321";
+const LIGHT_THEME_COLOR = "#f4f0e7";
+let theme: Theme = readTheme() ?? "dark";
 
 function readTheme(): Theme | null {
   try {
@@ -50,14 +50,15 @@ function readTheme(): Theme | null {
 }
 
 function applyTheme(nextTheme: Theme, persist = true): void {
-  theme = nextTheme;
+  theme = nextTheme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = theme;
   const nextLabel = `Switch to ${theme === "dark" ? "light" : "dark"} mode`;
-  themeToggle.textContent = theme === "dark" ? "☀" : "☾";
   themeToggle.title = nextLabel;
   themeToggle.setAttribute("aria-label", nextLabel);
   themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
-  if (themeColorMeta) themeColorMeta.content = theme === "dark" ? "#0d1311" : "#18211f";
+  if (themeColorMeta) {
+    themeColorMeta.content = theme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+  }
   if (persist) {
     try {
       localStorage.setItem(THEME_KEY, theme);
@@ -467,13 +468,4 @@ function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`mobile shell is missing #${id}`);
   return element as T;
-}
-
-function registerServiceWorker(): void {
-  if (!("serviceWorker" in navigator)) return;
-  const serviceWorkerUrl = new URL("../../service-worker.js", import.meta.url);
-  const scope = new URL("../../", import.meta.url).pathname;
-  void navigator.serviceWorker.register(serviceWorkerUrl, { scope }).catch(() => {
-    // The reader remains usable when a static host does not support service workers.
-  });
 }

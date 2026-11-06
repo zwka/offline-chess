@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Mount Woodpecker Generator and Trainer with cross-links and shared Theme
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] When a Puzzle Set has been generated in Woodpecker Generator, a primary "Do Puzzles" button appears next to "Export JSON" and requires a non-empty Puzzle Set name before proceeding, just like "Export JSON".
 - [ ] Clicking "Do Puzzles" stores the generated Puzzle Set in a shared IndexedDB handoff inbox and navigates the current window to `/woodpecker-trainer/`.

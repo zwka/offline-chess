@@ -163,36 +163,20 @@ function headingSlugs(text) {
   return slugs;
 }
 
-function checkGeneratedCache(repositoryRoot, documents, findings) {
-  const build = readFileSync(resolve(repositoryRoot, "build-mobile.mjs"), "utf8");
-  const serviceWorker = readFileSync(resolve(repositoryRoot, "mobile/service-worker.js"), "utf8");
-  const version = build.match(/const CACHE_VERSION = ["']([^"']+)["']/)?.[1];
-  const generatedName = serviceWorker.match(/const CACHE_NAME = ["']([^"']+)["']/)?.[1];
-  if (!version || !generatedName) {
-    findings.push({ file: "build-mobile.mjs", line: 1, message: "could not read the mobile cache version" });
-    return;
-  }
-
-  const expectedName = `offline-pgn-reader-mobile-${version}`;
-  if (generatedName !== expectedName) {
+function checkGeneratedCache(repositoryRoot, _documents, findings) {
+  if (existsSync(resolve(repositoryRoot, "mobile/service-worker.js"))) {
     findings.push({
       file: "mobile/service-worker.js",
       line: 1,
-      message: `generated cache is ${generatedName}, expected ${expectedName}`,
+      message: "standalone per-Tool service worker must not exist in Suite build",
     });
   }
-
-  for (const document of documents) {
-    const text = readFileSync(document.absolutePath, "utf8");
-    for (const match of text.matchAll(/offline-pgn-reader-mobile-v[0-9]+/g)) {
-      if (match[0] !== expectedName) {
-        findings.push({
-          file: document.path,
-          line: lineNumber(text, match.index),
-          message: `documented mobile cache is ${match[0]}, expected ${expectedName}`,
-        });
-      }
-    }
+  if (existsSync(resolve(repositoryRoot, "mobile/manifest.webmanifest"))) {
+    findings.push({
+      file: "mobile/manifest.webmanifest",
+      line: 1,
+      message: "standalone per-Tool web manifest must not exist in Suite build",
+    });
   }
 }
 

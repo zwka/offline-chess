@@ -1,20 +1,24 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { cp, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL("../", import.meta.url));
-const distDir = fileURLToPath(new URL("../dist/", import.meta.url));
-const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
-const landingDir = fileURLToPath(new URL("../landing/", import.meta.url));
-const blindChessDir = fileURLToPath(new URL("../apps/blind-chess/", import.meta.url));
-const blindChessDistDir = fileURLToPath(new URL("../apps/blind-chess/dist/", import.meta.url));
-const suiteBlindChessDistDir = fileURLToPath(new URL("../dist/blind-chess/", import.meta.url));
-const woodpeckerDir = fileURLToPath(new URL("../apps/woodpecker/", import.meta.url));
-const generatorDistDir = fileURLToPath(new URL("../apps/woodpecker/apps/generator/dist/", import.meta.url));
-const trainerDistDir = fileURLToPath(new URL("../apps/woodpecker/apps/trainer/dist/", import.meta.url));
-const suiteGeneratorDistDir = fileURLToPath(new URL("../dist/woodpecker-generator/", import.meta.url));
-const suiteTrainerDistDir = fileURLToPath(new URL("../dist/woodpecker-trainer/", import.meta.url));
+const distDir = join(rootDir, "dist");
+const publicDir = join(rootDir, "public");
+const landingDir = join(rootDir, "landing");
+const blindChessDir = join(rootDir, "apps", "blind-chess");
+const blindChessDistDir = join(blindChessDir, "dist");
+const suiteBlindChessDistDir = join(distDir, "blind-chess");
+const pgnReaderDir = join(rootDir, "apps", "pgn-reader");
+const pgnReaderMobileDir = join(pgnReaderDir, "mobile");
+const pgnReaderOutDir = join(distDir, "pgn-reader");
+const woodpeckerDir = join(rootDir, "apps", "woodpecker");
+const generatorDistDir = join(woodpeckerDir, "apps", "generator", "dist");
+const trainerDistDir = join(woodpeckerDir, "apps", "trainer", "dist");
+const suiteGeneratorDistDir = join(distDir, "woodpecker-generator");
+const suiteTrainerDistDir = join(distDir, "woodpecker-trainer");
 
 await rm(distDir, { recursive: true, force: true });
 await mkdir(distDir, { recursive: true });
@@ -22,7 +26,7 @@ await mkdir(distDir, { recursive: true });
 await cp(publicDir, distDir, { recursive: true });
 await cp(landingDir, distDir, { recursive: true });
 
-if (!existsSync(fileURLToPath(new URL("../apps/blind-chess/node_modules", import.meta.url)))) {
+if (!existsSync(join(blindChessDir, "node_modules"))) {
   execFileSync("npm", ["--prefix", blindChessDir, "ci", "--prefer-offline"], {
     cwd: rootDir,
     stdio: "inherit",
@@ -37,7 +41,26 @@ execFileSync("npm", ["--prefix", blindChessDir, "run", "build"], {
 await mkdir(suiteBlindChessDistDir, { recursive: true });
 await cp(blindChessDistDir, suiteBlindChessDistDir, { recursive: true });
 
-if (!existsSync(fileURLToPath(new URL("../apps/woodpecker/node_modules", import.meta.url)))) {
+if (!existsSync(join(pgnReaderDir, "node_modules"))) {
+  execFileSync("npm", ["--prefix", pgnReaderDir, "ci", "--prefer-offline", "--ignore-scripts"], {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
+}
+
+execFileSync("npm", ["--prefix", pgnReaderDir, "run", "build:mobile"], {
+  cwd: rootDir,
+  stdio: "inherit",
+});
+
+await mkdir(pgnReaderOutDir, { recursive: true });
+for (const entry of ["index.html", "mobile.css", "icons", "pieces", "dist"]) {
+  await cp(join(pgnReaderMobileDir, entry), join(pgnReaderOutDir, entry), {
+    recursive: true,
+  });
+}
+
+if (!existsSync(join(woodpeckerDir, "node_modules"))) {
   execFileSync("npm", ["--prefix", woodpeckerDir, "ci", "--prefer-offline"], {
     cwd: rootDir,
     stdio: "inherit",
@@ -55,6 +78,6 @@ await mkdir(suiteTrainerDistDir, { recursive: true });
 await cp(trainerDistDir, suiteTrainerDistDir, { recursive: true });
 
 for (const toolOutDir of [suiteGeneratorDistDir, suiteTrainerDistDir]) {
-  await rm(fileURLToPath(new URL("../dist/" + (toolOutDir === suiteGeneratorDistDir ? "woodpecker-generator" : "woodpecker-trainer") + "/manifest.webmanifest", import.meta.url)), { force: true });
-  await rm(fileURLToPath(new URL("../dist/" + (toolOutDir === suiteGeneratorDistDir ? "woodpecker-generator" : "woodpecker-trainer") + "/sw.js", import.meta.url)), { force: true });
+  await rm(join(toolOutDir, "manifest.webmanifest"), { force: true });
+  await rm(join(toolOutDir, "sw.js"), { force: true });
 }
