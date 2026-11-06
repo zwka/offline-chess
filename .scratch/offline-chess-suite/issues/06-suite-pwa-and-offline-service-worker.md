@@ -4,11 +4,11 @@
 
 **Blocked by:** 02: Mount Blind Chess at `/blind-chess/` with shared Suite Theme, 03: Mount PGN Reader at `/pgn-reader/` with Suite Theme and palette, 04: Mount Woodpecker Generator and Trainer with cross-links and shared Theme
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Only one web app manifest exists in the assembled Suite (`/manifest.webmanifest`), declaring "Offline Chess", standalone display, root `start_url` and `scope`, and the Suite's 192×192, 512×512, and 512×512 maskable icons.
-- [ ] A single Suite service worker registered at root scope (`/`) precaches the Landing Page and all four Tools on installation so that visiting `/` once while online caches every Tool's HTML shell, scripts, styles, icons, piece graphics, demo set, and sample puzzle index.
-- [ ] When the browser goes offline (or the server stops) after initial installation on `/`, navigating to `/`, `/blind-chess/`, `/pgn-reader/`, `/woodpecker-generator/`, and `/woodpecker-trainer/`—including hard reloads on each path—succeeds with zero network errors.
-- [ ] The Suite service worker preserves Woodpecker Generator's runtime caching and `HEAD` request support for the optional generated puzzle index without including the ~437 MB generated index in the install precache list.
-- [ ] On activation, the Suite service worker deletes only outdated Suite caches and never wipes active Suite caches.
-- [ ] Automated Suite E2E tests verify manifest installability metadata, full precaching after a single visit to `/`, offline navigation and operation across all five surfaces, and runtime/`HEAD` handling for Woodpecker Generator's puzzle index.
+- [x] Only one web app manifest exists in the assembled Suite (`/manifest.webmanifest`), declaring "Offline Chess", standalone display, root `start_url` and `scope`, and the Suite's 192×192, 512×512, and 512×512 maskable icons.
+- [x] A single Suite service worker registered at root scope (`/`) precaches the Landing Page and all four Tools on installation so that visiting `/` once while online caches every Tool's HTML shell, scripts, styles, icons, piece graphics, demo set, and sample puzzle index.
+- [x] When the browser goes offline (or the server stops) after initial installation on `/`, navigating to `/`, `/blind-chess/`, `/pgn-reader/`, `/woodpecker-generator/`, and `/woodpecker-trainer/`—including hard reloads on each path—succeeds with zero network errors.
+- [x] The Suite service worker preserves Woodpecker Generator's runtime caching and `HEAD` request support for the optional generated puzzle index without including the ~437 MB generated index in the install precache list.
+- [x] On activation, the Suite service worker deletes only outdated Suite caches and never wipes active Suite caches.
+- [x] Automated Suite E2E tests verify manifest installability metadata, full precaching after a single visit to `/`, offline navigation and operation across all five surfaces, and runtime/`HEAD` handling for Woodpecker Generator's puzzle index.
