@@ -1,18 +1,17 @@
 import { z } from "zod";
 
-const THEME_PREFERENCE_KEY = "offline-blind-chess.theme.v1";
-const ThemePreferenceSchema = z.enum(["system", "light", "dark"]);
+const THEME_PREFERENCE_KEY = "offline-chess.theme.v1";
+const ThemePreferenceSchema = z.enum(["light", "dark"]);
 
 export type ThemePreference = z.infer<typeof ThemePreferenceSchema>;
-export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 export function readThemePreference(): ThemePreference {
   try {
     const stored = window.localStorage.getItem(THEME_PREFERENCE_KEY);
     const result = ThemePreferenceSchema.safeParse(stored);
-    return result.success ? result.data : "system";
+    return result.success ? result.data : "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
@@ -25,37 +24,11 @@ export function saveThemePreference(preference: ThemePreference): boolean {
   }
 }
 
-export function resolveTheme(preference: ThemePreference, systemTheme: ResolvedTheme): ResolvedTheme {
-  return preference === "system" ? systemTheme : preference;
-}
-
-export function readSystemTheme(): ResolvedTheme {
-  try {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  } catch {
-    return "light";
-  }
-}
-
-export function subscribeToSystemTheme(onChange: (theme: ResolvedTheme) => void): () => void {
-  try {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      onChange(event.matches ? "dark" : "light");
-    };
-    query.addEventListener("change", handleChange);
-    return () => query.removeEventListener("change", handleChange);
-  } catch {
-    return () => {};
-  }
-}
-
-export function applyTheme(preference: ThemePreference, systemTheme: ResolvedTheme): ResolvedTheme {
-  const theme = resolveTheme(preference, systemTheme);
-  document.documentElement.dataset.theme = theme;
+export function applyTheme(preference: ThemePreference): ThemePreference {
+  document.documentElement.dataset.theme = preference;
   document.querySelector('meta[name="theme-color"]')?.setAttribute(
     "content",
-    theme === "dark" ? "#141b17" : "#f4f3ee"
+    preference === "dark" ? "#172321" : "#f4f0e7"
   );
-  return theme;
+  return preference;
 }
