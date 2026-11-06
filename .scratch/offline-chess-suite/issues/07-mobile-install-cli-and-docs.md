@@ -4,9 +4,9 @@
 
 **Blocked by:** 06: Suite PWA manifest, single root service worker, and offline precaching
 
-**Status:** claimed
+**Status:** done
 
-- [ ] Running `./offline-chess --install-mobile` installs dependencies if needed, builds the complete Suite, starts the local static preview server, opens a `cloudflared` HTTPS Quick Tunnel, and prints the public HTTPS URL for Android Chrome installation (reusing a healthy running instance when invoked repeatedly).
-- [ ] Running `./offline-chess --shutdown` cleanly stops both the preview server and the `cloudflared` tunnel process and cleans up state files.
-- [ ] Automated CLI tests verify `--install-mobile`, repeat invocation reuse, error handling when prerequisites are missing, and `--shutdown` cleanup.
-- [ ] The root `README.md` documents the Suite overview, prerequisites, local development, running tests across the Suite and Tools, production deployment, and the `--install-mobile` / `--shutdown` phone installation workflow.
+- [x] Running `./offline-chess --install-mobile` installs dependencies if needed, builds the complete Suite, starts the local static preview server, opens a `cloudflared` HTTPS Quick Tunnel, and prints the public HTTPS URL for Android Chrome installation (reusing a healthy running instance when invoked repeatedly).
+- [x] Running `./offline-chess --shutdown` cleanly stops both the preview server and the `cloudflared` tunnel process and cleans up state files.
+- [x] Automated CLI tests verify `--install-mobile`, repeat invocation reuse, error handling when prerequisites are missing, and `--shutdown` cleanup.
+- [x] The root `README.md` documents the Suite overview, prerequisites, local development, running tests across the Suite and Tools, production deployment, and the `--install-mobile` / `--shutdown` phone installation workflow.

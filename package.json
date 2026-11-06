@@ -10,8 +10,9 @@
     "icons": "node scripts/generate-icons.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview-server.mjs",
+    "test:cli": "node --test tests/cli/*.test.mjs",
     "test:e2e": "playwright test --config=playwright.config.ts",
-    "test": "npm run test:e2e"
+    "test": "npm run test:cli && npm run test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
