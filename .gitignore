@@ -7,3 +7,4 @@ blob-report/
 playwright/.cache/
 .mobile-install-state/
 .offline-chess/
+puzzles-database/
