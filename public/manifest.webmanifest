@@ -1,0 +1,30 @@
+{
+  "name": "Offline Chess",
+  "short_name": "Offline Chess",
+  "description": "Offline-first chess training and study suite with Blind Chess, PGN Reader, Woodpecker Generator, and Woodpecker Trainer.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#172321",
+  "theme_color": "#172321",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

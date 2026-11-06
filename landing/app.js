@@ -47,3 +47,10 @@ if (themeToggle) {
     applyTheme(currentTheme === "dark" ? "light" : "dark", true);
   });
 }
+
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+    // Ignore service worker registration errors in unsupported contexts.
+  });
+}
+

@@ -28,7 +28,7 @@ test.describe("PGN Reader Tool (/pgn-reader/)", () => {
       const regs = await navigator.serviceWorker.getRegistrations();
       return regs.map((r) => r.scope);
     });
-    expect(registrations).toEqual([]);
+    expect(registrations.filter((scope) => scope.includes("/pgn-reader"))).toEqual([]);
   });
 
   test("defaults to dark Theme, renders consistent Sun/Moon SVG button, and syncs Theme with Landing Page via offline-chess.theme.v1", async ({ page }) => {

@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL("../", import.meta.url));
@@ -81,3 +82,197 @@ for (const toolOutDir of [suiteGeneratorDistDir, suiteTrainerDistDir]) {
   await rm(join(toolOutDir, "manifest.webmanifest"), { force: true });
   await rm(join(toolOutDir, "sw.js"), { force: true });
 }
+
+const EXCLUDED_PRECACHE_PATHS = new Set([
+  "/sw.js",
+  "/woodpecker-generator/puzzle-index.generated.jsonl.gz",
+  "/woodpecker-generator/puzzle-index.generated-manifest.json",
+]);
+
+async function collectDistFiles(dir) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectDistFiles(fullPath)));
+    } else if (entry.isFile()) {
+      const urlPath = "/" + relative(distDir, fullPath).replace(/\\/g, "/");
+      if (!EXCLUDED_PRECACHE_PATHS.has(urlPath)) {
+        files.push(urlPath);
+      }
+    }
+  }
+  return files.sort();
+}
+
+const distFiles = await collectDistFiles(distDir);
+const hash = createHash("sha256");
+for (const urlPath of distFiles) {
+  hash.update(urlPath);
+  hash.update(await readFile(join(distDir, urlPath.slice(1))));
+}
+const buildHash = hash.digest("hex").slice(0, 12);
+
+const directoryRoutes = [
+  "/",
+  "/blind-chess/",
+  "/pgn-reader/",
+  "/woodpecker-generator/",
+  "/woodpecker-trainer/",
+];
+const precacheUrls = [...new Set([...directoryRoutes, ...distFiles])];
+
+const swSource = `const CACHE_PREFIX = "offline-chess-suite-";
+const CACHE = "offline-chess-suite-v1-${buildHash}";
+const PRECACHE_URLS = ${JSON.stringify(precacheUrls, null, 2)};
+const TOOL_SHELLS = [
+  "/blind-chess/",
+  "/pgn-reader/",
+  "/woodpecker-generator/",
+  "/woodpecker-trainer/",
+];
+
+function resolveNavigationShell(pathname) {
+  for (const prefix of TOOL_SHELLS) {
+    const bare = prefix.slice(0, -1);
+    if (pathname === bare || pathname.startsWith(prefix)) {
+      return \`\${prefix}index.html\`;
+    }
+  }
+  return "/index.html";
+}
+
+function createHeadResponse(response) {
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+async function fromCache(request) {
+  const url = new URL(request.url);
+  const lookupUrl = new URL(url.pathname, self.location.origin).href;
+  const cacheRequest = new Request(lookupUrl, { method: "GET" });
+
+  let cached =
+    (await caches.match(cacheRequest, { ignoreVary: true })) ??
+    (await caches.match(url.pathname, { ignoreVary: true }));
+
+  if (!cached && url.pathname.endsWith("/")) {
+    const indexPath = \`\${url.pathname}index.html\`;
+    const indexUrl = new URL(indexPath, self.location.origin).href;
+    cached =
+      (await caches.match(new Request(indexUrl, { method: "GET" }), { ignoreVary: true })) ??
+      (await caches.match(indexPath, { ignoreVary: true }));
+  }
+
+  if (!cached && (request.mode === "navigate" || request.destination === "document")) {
+    const shellPath = resolveNavigationShell(url.pathname);
+    const shellUrl = new URL(shellPath, self.location.origin).href;
+    cached =
+      (await caches.match(new Request(shellUrl, { method: "GET" }), { ignoreVary: true })) ??
+      (await caches.match(shellPath, { ignoreVary: true })) ??
+      (await caches.match(new Request(new URL("/", self.location.origin).href, { method: "GET" }), { ignoreVary: true })) ??
+      (await caches.match("/", { ignoreVary: true }));
+  }
+
+  if (!cached) return undefined;
+  return request.method === "HEAD" ? createHeadResponse(cached) : cached;
+}
+
+async function generatedIndexHeadResponse(url) {
+  const request = new Request(url, { method: "GET" });
+  try {
+    const cached =
+      (await caches.match(request, { ignoreVary: true })) ??
+      (await caches.match(new URL(url).pathname, { ignoreVary: true }));
+    if (cached) return createHeadResponse(cached);
+
+    if (self.navigator && self.navigator.onLine === false) {
+      return new Response("Offline", { status: 503 });
+    }
+
+    const response = await fetch(request);
+    const headResponse = createHeadResponse(response);
+    if (!response.ok) return headResponse;
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response);
+    return headResponse;
+  } catch {
+    return new Response("Offline", { status: 503 });
+  }
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(PRECACHE_URLS.map(async (url) => {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          await cache.put(url, response);
+        }
+      } catch {
+        // Ignore transient install fetch failure in isolated test environments.
+      }
+    }));
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE)
+        .map((key) => caches.delete(key)),
+    );
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET" && event.request.method !== "HEAD") return;
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
+  const isGeneratedIndexHead =
+    event.request.method === "HEAD" &&
+    requestUrl.pathname === "/woodpecker-generator/puzzle-index.generated.jsonl.gz";
+
+  event.respondWith((async () => {
+    if (isGeneratedIndexHead) {
+      return generatedIndexHeadResponse(event.request.url);
+    }
+
+    if (self.navigator && self.navigator.onLine === false) {
+      const cached = await fromCache(event.request);
+      if (cached) return cached;
+      return new Response("Offline", { status: 503 });
+    }
+
+    try {
+      const response = await fetch(event.request);
+      if (response.ok && event.request.method === "GET") {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)));
+      }
+      if (!response.ok) {
+        return (await fromCache(event.request)) ?? response;
+      }
+      return response;
+    } catch {
+      const cached = await fromCache(event.request);
+      if (cached) return cached;
+      return new Response("Offline", { status: 503 });
+    }
+  })());
+});
+`;
+
+await writeFile(join(distDir, "sw.js"), swSource, "utf8");
+
