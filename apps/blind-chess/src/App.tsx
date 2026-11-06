@@ -7,8 +7,10 @@ import {
   Download,
   History as HistoryIcon,
   House,
+  Moon,
   Play,
   RotateCcw,
+  Sun,
   Timer,
   Trash2,
   Trophy,
@@ -163,23 +165,25 @@ function ThemeControl({
   preference: ThemePreference;
   onChange: (preference: ThemePreference) => void;
 }) {
+  const nextTheme: ThemePreference = preference === "dark" ? "light" : "dark";
+  const nextLabel = preference === "dark" ? "Switch to light mode" : "Switch to dark mode";
+
   return (
-    <fieldset className="theme-control">
-      <legend>Color theme</legend>
-      <span className="theme-control-label" aria-hidden="true">Theme</span>
-      {(["system", "light", "dark"] as const).map((option) => (
-        <label className="theme-option" key={option}>
-          <input
-            type="radio"
-            name="color-theme"
-            value={option}
-            checked={preference === option}
-            onChange={() => onChange(option)}
-          />
-          <span>{option[0]?.toUpperCase()}{option.slice(1)}</span>
-        </label>
-      ))}
-    </fieldset>
+    <button
+      id="theme-toggle"
+      className="theme-toggle"
+      type="button"
+      title={nextLabel}
+      aria-label={nextLabel}
+      aria-pressed={preference === "dark"}
+      onClick={() => onChange(nextTheme)}
+    >
+      {preference === "dark" ? (
+        <Sun size={18} aria-hidden="true" />
+      ) : (
+        <Moon size={18} aria-hidden="true" />
+      )}
+    </button>
   );
 }
 
@@ -691,8 +695,8 @@ function App() {
           <button className="install-button" type="button" onClick={() => void installApp()}>
             <Download size={16} /> <span>Install</span>
           </button>
+          <ThemeControl preference={themePreference} onChange={selectTheme} />
         </nav>
-        <ThemeControl preference={themePreference} onChange={selectTheme} />
       </header>
 
       {screen === "home" && (

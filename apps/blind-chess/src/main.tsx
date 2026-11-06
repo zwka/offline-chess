@@ -1,12 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { registerSW } from "virtual:pwa-register";
 import App from "./App";
-import { applyTheme, readSystemTheme, readThemePreference } from "./preferences";
+import { applyTheme, readThemePreference } from "./preferences";
 import "./styles.css";
 
-registerSW({ immediate: true });
-applyTheme(readThemePreference(), readSystemTheme());
+applyTheme(readThemePreference());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
