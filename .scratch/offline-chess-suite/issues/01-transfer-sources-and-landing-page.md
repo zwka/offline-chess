@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] All three Source Apps are imported into the Suite repository via `git subtree` with full commit history preserved, and the original Source App repositories have zero uncommitted or new commits.
 - [ ] The Suite pins Node 24.11.1 and provides a root build and preview workflow that outputs the Landing Page at the root of the assembled distribution directory.
