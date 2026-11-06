@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  applyTheme,
   readThemePreference,
-  resolveTheme,
-  saveThemePreference,
-  subscribeToSystemTheme
+  saveThemePreference
 } from "./preferences";
 
 const values = new Map<string, string>();
@@ -23,58 +22,45 @@ describe("theme preference", () => {
     vi.unstubAllGlobals();
   });
 
-  it.each(["light", "dark"] as const)("defaults to System and persists %s", (preference) => {
-    expect(readThemePreference()).toBe("system");
+  it.each(["light", "dark"] as const)("defaults to dark and persists %s under offline-chess.theme.v1", (preference) => {
+    expect(readThemePreference()).toBe("dark");
     expect(saveThemePreference(preference)).toBe(true);
+    expect(values.get("offline-chess.theme.v1")).toBe(preference);
     expect(readThemePreference()).toBe(preference);
   });
 
-  it("uses System when the saved preference is invalid", () => {
-    values.set("offline-blind-chess.theme.v1", "sepia");
+  it.each(["sepia", "system"] as const)("falls back to dark when the saved preference is %s", (invalid) => {
+    values.set("offline-chess.theme.v1", invalid);
 
-    expect(readThemePreference()).toBe("system");
+    expect(readThemePreference()).toBe("dark");
   });
 
-  it("continues with System when browser storage is unavailable", () => {
+  it("continues with dark when browser storage is unavailable", () => {
     vi.stubGlobal("window", {
       get localStorage() {
         throw new Error("Storage access denied");
       }
     });
 
-    expect(readThemePreference()).toBe("system");
+    expect(readThemePreference()).toBe("dark");
     expect(saveThemePreference("light")).toBe(false);
   });
 
-  it("resolves System from the current device appearance and honors explicit choices", () => {
-    expect(resolveTheme("system", "light")).toBe("light");
-    expect(resolveTheme("system", "dark")).toBe("dark");
-    expect(resolveTheme("light", "dark")).toBe("light");
-    expect(resolveTheme("dark", "light")).toBe("dark");
-  });
-
-  it("reports device appearance changes to a System preference", () => {
-    let listener: ((event: { matches: boolean }) => void) | undefined;
-    const removeEventListener = vi.fn();
-    vi.stubGlobal("window", {
-      matchMedia: () => ({
-        addEventListener: (_type: string, callback: (event: { matches: boolean }) => void) => {
-          listener = callback;
-        },
-        removeEventListener
-      })
+  it("applies dataset.theme and theme-color meta content for dark and light", () => {
+    const setAttribute = vi.fn();
+    const dataset: Record<string, string | undefined> = {};
+    vi.stubGlobal("document", {
+      documentElement: { dataset },
+      querySelector: (selector: string) =>
+        selector === 'meta[name="theme-color"]' ? { setAttribute } : null
     });
-    const resolvedThemes: string[] = [];
-    const onChange = vi.fn((theme: "light" | "dark") => resolvedThemes.push(resolveTheme("system", theme)));
 
-    const unsubscribe = subscribeToSystemTheme(onChange);
-    listener?.({ matches: true });
-    listener?.({ matches: false });
-    unsubscribe();
+    expect(applyTheme("dark")).toBe("dark");
+    expect(dataset.theme).toBe("dark");
+    expect(setAttribute).toHaveBeenLastCalledWith("content", "#172321");
 
-    expect(onChange).toHaveBeenNthCalledWith(1, "dark");
-    expect(onChange).toHaveBeenNthCalledWith(2, "light");
-    expect(resolvedThemes).toEqual(["dark", "light"]);
-    expect(removeEventListener).toHaveBeenCalledOnce();
+    expect(applyTheme("light")).toBe("light");
+    expect(dataset.theme).toBe("light");
+    expect(setAttribute).toHaveBeenLastCalledWith("content", "#f4f0e7");
   });
 });

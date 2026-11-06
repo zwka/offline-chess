@@ -1,22 +1,17 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   applyTheme,
-  readSystemTheme,
   readThemePreference,
-  saveThemePreference,
-  subscribeToSystemTheme
+  saveThemePreference
 } from "./preferences";
-import type { ResolvedTheme, ThemePreference } from "./preferences";
+import type { ThemePreference } from "./preferences";
 
 export function useThemePreference() {
   const [preference, setPreferenceState] = useState<ThemePreference>(readThemePreference);
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(readSystemTheme);
-
-  useEffect(() => subscribeToSystemTheme(setSystemTheme), []);
 
   useLayoutEffect(() => {
-    applyTheme(preference, systemTheme);
-  }, [preference, systemTheme]);
+    applyTheme(preference);
+  }, [preference]);
 
   const setPreference = (next: ThemePreference) => {
     setPreferenceState(next);
