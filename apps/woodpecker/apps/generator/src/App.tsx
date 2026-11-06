@@ -4,7 +4,6 @@ import {
   ChevronRight,
   CircleHelp,
   Download,
-  ExternalLink,
   Filter,
   Moon,
   RefreshCw,
@@ -22,34 +21,55 @@ import {
 } from "@offline-woodpecker/domain";
 import { loadPuzzleIndex } from "./load-puzzle-index";
 
-type ThemeChoice = "system" | "light" | "dark";
+type ThemeChoice = "light" | "dark";
 
+const THEME_KEY = "offline-chess.theme.v1";
+const DARK_THEME_COLOR = "#172321";
+const LIGHT_THEME_COLOR = "#f4f0e7";
 const FALLBACK_THEMES = ["advantage", "crushing", "endgame", "fork", "mate", "middlegame", "short"];
-const TRAINER_URL = import.meta.env.VITE_TRAINER_URL ?? (import.meta.env.DEV ? "http://127.0.0.1:4174" : "");
+const TRAINER_URL = import.meta.env.VITE_TRAINER_URL ?? "/woodpecker-trainer/";
+
+function readTheme(): ThemeChoice {
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  } catch {
+    return "dark";
+  }
+}
 
 function useTheme() {
-  const [choice, setChoice] = useState<ThemeChoice>(() => {
-    const stored = window.localStorage.getItem("woodpecker-generator-theme");
-    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-  });
-  const [systemDark, setSystemDark] = useState(false);
+  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
 
   useEffect(() => {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () => setSystemDark(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    document.documentElement.dataset.theme = theme;
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute("content", theme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const sync = () => setTheme(readTheme());
+    window.addEventListener("pageshow", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("pageshow", sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
 
-  const resolved = choice === "system" ? (systemDark ? "dark" : "light") : choice;
+  function toggleTheme() {
+    const next: ThemeChoice = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try {
+      window.localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Ignore storage failures so the active session still reflects the selected theme.
+    }
+  }
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-    window.localStorage.setItem("woodpecker-generator-theme", choice);
-  }, [choice, resolved]);
-
-  return { choice, setChoice, resolved };
+  return { theme, toggleTheme };
 }
 
 function formatTheme(theme: string): string {
@@ -57,10 +77,6 @@ function formatTheme(theme: string): string {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .replace(/^./, (character) => character.toUpperCase());
-}
-
-function isThemeChoice(value: string): value is ThemeChoice {
-  return value === "system" || value === "light" || value === "dark";
 }
 
 function downloadPuzzleSet(set: PuzzleSet) {
@@ -74,24 +90,26 @@ function downloadPuzzleSet(set: PuzzleSet) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function ThemeControl({ choice, onChange }: { choice: ThemeChoice; onChange: (value: ThemeChoice) => void }) {
+function ThemeControl({ theme, onToggle }: { theme: ThemeChoice; onToggle: () => void }) {
+  const nextLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
   return (
-    <label className="theme-control">
-      <span className="sr-only">Color theme</span>
-      {choice === "dark" ? <Moon size={16} /> : choice === "light" ? <Sun size={16} /> : <CircleHelp size={16} />}
-      <select value={choice} onChange={(event) => { if (isThemeChoice(event.target.value)) onChange(event.target.value); }} aria-label="Color theme">
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onToggle}
+      title={nextLabel}
+      aria-label={nextLabel}
+      aria-pressed={theme === "dark"}
+    >
+      {theme === "dark" ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+    </button>
   );
 }
 
 function App() {
   const theme = useTheme();
   const [manifest, setManifest] = useState<PuzzleIndexManifest | null>(null);
-  const [indexPath, setIndexPath] = useState("/puzzle-index.jsonl");
+  const [indexPath, setIndexPath] = useState(`${import.meta.env.BASE_URL}puzzle-index.jsonl`);
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [setName, setSetName] = useState("Focused tactics");
   const [ratingMin, setRatingMin] = useState(1100);
@@ -210,8 +228,8 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
-          {TRAINER_URL && <a className="quiet-link" href={TRAINER_URL} target="_blank" rel="noreferrer">Open Trainer <ExternalLink size={15} /></a>}
-          <ThemeControl choice={theme.choice} onChange={theme.setChoice} />
+          <a className="quiet-link" href={TRAINER_URL}>Trainer →</a>
+          <ThemeControl theme={theme.theme} onToggle={theme.toggleTheme} />
         </div>
       </header>
 

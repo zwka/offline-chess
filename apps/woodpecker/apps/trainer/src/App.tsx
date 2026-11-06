@@ -55,10 +55,13 @@ import {
 } from "./storage";
 import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePosition, solutionLine } from "./puzzle-session";
 
-type ThemeChoice = "system" | "light" | "dark";
+type ThemeChoice = "light" | "dark";
 type View = "library" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
-const GENERATOR_URL = import.meta.env.VITE_GENERATOR_URL ?? (import.meta.env.DEV ? "http://127.0.0.1:4173" : "");
+const THEME_KEY = "offline-chess.theme.v1";
+const DARK_THEME_COLOR = "#172321";
+const LIGHT_THEME_COLOR = "#f4f0e7";
+const GENERATOR_URL = import.meta.env.VITE_GENERATOR_URL ?? "/woodpecker-generator/";
 const MOVE_ANIMATION_DURATION_MS = 250;
 
 type BoardPlayback = {
@@ -75,28 +78,47 @@ const PROMOTION_CHOICES: Array<{ value: PromotionChoice; label: string }> = [
   { value: "n", label: "Knight" },
 ];
 
+function readTheme(): ThemeChoice {
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
 function useTheme() {
-  const [choice, setChoice] = useState<ThemeChoice>(() => {
-    const stored = window.localStorage.getItem("woodpecker-trainer-theme");
-    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-  });
-  const [systemDark, setSystemDark] = useState(false);
+  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
 
   useEffect(() => {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () => setSystemDark(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    document.documentElement.dataset.theme = theme;
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute("content", theme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const sync = () => setTheme(readTheme());
+    window.addEventListener("pageshow", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("pageshow", sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
 
-  const resolved = choice === "system" ? (systemDark ? "dark" : "light") : choice;
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-    window.localStorage.setItem("woodpecker-trainer-theme", choice);
-  }, [choice, resolved]);
+  function toggleTheme() {
+    const next: ThemeChoice = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try {
+      window.localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Ignore storage failures so the active session still reflects the selected theme.
+    }
+  }
 
-  return { choice, setChoice, resolved };
+  return { theme, toggleTheme };
 }
 
 function formatTheme(theme: string): string {
@@ -104,10 +126,6 @@ function formatTheme(theme: string): string {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .replace(/^./, (character) => character.toUpperCase());
-}
-
-function isThemeChoice(value: string): value is ThemeChoice {
-  return value === "system" || value === "light" || value === "dark";
 }
 
 function formatDate(value: string): string {
@@ -124,17 +142,19 @@ function downloadJson(filename: string, value: unknown) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function ThemeControl({ choice, onChange }: { choice: ThemeChoice; onChange: (value: ThemeChoice) => void }) {
+function ThemeControl({ theme, onToggle }: { theme: ThemeChoice; onToggle: () => void }) {
+  const nextLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
   return (
-    <label className="theme-control">
-      <span className="sr-only">Color theme</span>
-      {choice === "dark" ? <Moon size={16} /> : choice === "light" ? <Sun size={16} /> : <CircleHelp size={16} />}
-      <select value={choice} onChange={(event) => { if (isThemeChoice(event.target.value)) onChange(event.target.value); }} aria-label="Color theme">
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onToggle}
+      title={nextLabel}
+      aria-label={nextLabel}
+      aria-pressed={theme === "dark"}
+    >
+      {theme === "dark" ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+    </button>
   );
 }
 
@@ -218,7 +238,7 @@ function App() {
         let next = await loadTrainerData();
         const demoSeeded = window.localStorage.getItem("woodpecker-demo-seeded") === "true";
         if (next.sets.length === 0 && !demoSeeded) {
-          const response = await fetch("/demo-set.json");
+          const response = await fetch(`${import.meta.env.BASE_URL}demo-set.json`);
           if (!response.ok) throw new Error("Demo set unavailable");
           const demo = await normalizePuzzleSet(parsePuzzleSet(await response.json()));
           await savePuzzleSet(demo);
@@ -645,7 +665,7 @@ function App() {
           <button className={view === "library" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("library")} disabled={isPersisting || Boolean(boardPlayback)}><Library size={15} /> Library</button>
           <button className={view === "history" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("history")} disabled={isPersisting || Boolean(boardPlayback)}><History size={15} /> History</button>
         </nav>
-        <div className="topbar-actions">{GENERATOR_URL && <a className="quiet-link" href={GENERATOR_URL} target="_blank" rel="noreferrer">Open Generator <ExternalLink size={15} /></a>}<ThemeControl choice={theme.choice} onChange={theme.setChoice} /></div>
+        <div className="topbar-actions"><a className="quiet-link" href={GENERATOR_URL}>Generator →</a><ThemeControl theme={theme.theme} onToggle={theme.toggleTheme} /></div>
       </header>
       {notice && <button className="global-notice" type="button" onClick={() => setNotice(null)}>{notice}<span aria-hidden="true">x</span></button>}
       {!data ? <main className="loading-screen"><RefreshCw className="spin" size={22} /><span>Opening local Trainer storage...</span></main> : view === "library" ? renderLibrary() : view === "solve" ? renderSolve() : view === "summary" ? renderSummary() : renderHistory()}

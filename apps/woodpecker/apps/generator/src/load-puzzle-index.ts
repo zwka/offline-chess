@@ -1,10 +1,16 @@
 import { puzzleIndexManifestSchema } from "@offline-woodpecker/domain";
 import type { PuzzleIndexManifest } from "@offline-woodpecker/domain";
 
-export async function loadPuzzleIndex(fetcher: typeof fetch = fetch): Promise<{ manifest: PuzzleIndexManifest; index: string }> {
+const BASE_URL = (import.meta.env?.BASE_URL ?? "/woodpecker-generator/").replace(/\/?$/, "/");
+
+export async function loadPuzzleIndex(
+  fetcher: typeof fetch = fetch,
+  baseUrl: string = BASE_URL,
+): Promise<{ manifest: PuzzleIndexManifest; index: string }> {
+  const prefix = baseUrl.replace(/\/?$/, "/");
   const candidates = [
-    { manifest: "/puzzle-index.generated-manifest.json", index: "/puzzle-index.generated.jsonl.gz" },
-    { manifest: "/puzzle-index-manifest.json", index: "/puzzle-index.jsonl" },
+    { manifest: `${prefix}puzzle-index.generated-manifest.json`, index: `${prefix}puzzle-index.generated.jsonl.gz` },
+    { manifest: `${prefix}puzzle-index-manifest.json`, index: `${prefix}puzzle-index.jsonl` },
   ];
   for (const candidate of candidates) {
     const response = await fetcher(candidate.manifest);
