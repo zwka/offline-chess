@@ -4,10 +4,10 @@
 
 **Blocked by:** 04: Mount Woodpecker Generator and Trainer with cross-links and shared Theme
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] When a Puzzle Set has been generated in Woodpecker Generator, a primary "Do Puzzles" button appears next to "Export JSON" and requires a non-empty Puzzle Set name before proceeding, just like "Export JSON".
-- [ ] Clicking "Do Puzzles" stores the generated Puzzle Set in a shared IndexedDB handoff inbox and navigates the current window to `/woodpecker-trainer/`.
-- [ ] When Woodpecker Trainer loads with a pending Puzzle Set in the handoff inbox, it clears the inbox item, validates and normalizes the set via its existing import logic, stores the new Puzzle Set, and automatically starts a Run so the player lands directly on Puzzle 1.
-- [ ] If the handed-off Puzzle Set already exists in Woodpecker Trainer (matched by content hash), Trainer does not create a duplicate set; if the existing set was archived it unarchives it, and if an active Run exists for that set it resumes that Run at the current puzzle—otherwise it starts a new Run—never abandoning an active Run.
-- [ ] Automated unit and Suite E2E tests verify the complete Handoff flow for both a newly generated Puzzle Set (landing on Puzzle 1) and a repeated Handoff of the same Puzzle Set after progress has been made (resuming the active Run without data loss or duplication).
+- [x] When a Puzzle Set has been generated in Woodpecker Generator, a primary "Do Puzzles" button appears next to "Export JSON" and requires a non-empty Puzzle Set name before proceeding, just like "Export JSON".
+- [x] Clicking "Do Puzzles" stores the generated Puzzle Set in a shared IndexedDB handoff inbox and navigates the current window to `/woodpecker-trainer/`.
+- [x] When Woodpecker Trainer loads with a pending Puzzle Set in the handoff inbox, it clears the inbox item, validates and normalizes the set via its existing import logic, stores the new Puzzle Set, and automatically starts a Run so the player lands directly on Puzzle 1.
+- [x] If the handed-off Puzzle Set already exists in Woodpecker Trainer (matched by content hash), Trainer does not create a duplicate set; if the existing set was archived it unarchives it, and if an active Run exists for that set it resumes that Run at the current puzzle—otherwise it starts a new Run—never abandoning an active Run.
+- [x] Automated unit and Suite E2E tests verify the complete Handoff flow for both a newly generated Puzzle Set (landing on Puzzle 1) and a repeated Handoff of the same Puzzle Set after progress has been made (resuming the active Run without data loss or duplication).
