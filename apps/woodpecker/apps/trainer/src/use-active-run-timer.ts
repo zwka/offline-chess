@@ -20,7 +20,7 @@ const CHECKPOINT_INTERVAL_MS = 1_000;
 export function useActiveRunTimer(
   run: ActiveRun | undefined,
   isSolving: boolean,
-  persist: (run: ActiveRun) => void,
+  persist: (run: ActiveRun, updateView: boolean) => void,
 ): (run: Run) => Run {
   const runRef = useRef(run);
   const persistRef = useRef(persist);
@@ -28,7 +28,7 @@ export function useActiveRunTimer(
   runRef.current = run;
   persistRef.current = persist;
 
-  function persistSnapshot(runId: string, tracker: ActiveTimeTracker) {
+  function persistSnapshot(runId: string, tracker: ActiveTimeTracker, updateView = false) {
     const session = sessionRef.current;
     const currentRun = runRef.current;
     if (!session || session.runId !== runId || !currentRun || currentRun.id !== runId) return;
@@ -36,14 +36,14 @@ export function useActiveRunTimer(
       ...session.run,
       activeTimeMs: Math.round(readActiveTimeMs(tracker, performance.now())),
     };
-    persistRef.current(session.run);
+    persistRef.current(session.run, updateView);
   }
 
   function pauseSession(runId: string) {
     const session = sessionRef.current;
     if (!session || session.runId !== runId) return;
     session.tracker = pauseActiveTime(session.tracker, performance.now());
-    persistSnapshot(runId, session.tracker);
+    persistSnapshot(runId, session.tracker, true);
   }
 
   function withActiveTime(nextRun: Run): Run {

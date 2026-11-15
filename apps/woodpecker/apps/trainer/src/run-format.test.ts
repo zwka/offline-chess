@@ -10,4 +10,8 @@ describe("Active solving time formatting", () => {
     expect(formatActiveTime(42_000)).toBe("42s");
     expect(formatActiveTime(60_000)).toBe("1m 0s");
   });
+
+  it("marks duration unavailable when a Run predates time tracking", () => {
+    expect(formatActiveTime(undefined)).toBe("Not recorded");
+  });
 });

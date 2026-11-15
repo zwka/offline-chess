@@ -77,6 +77,20 @@ const legacyBackup = {
       currentPuzzle: { kind: "playing", moveIndex: 1, retryCount: 0 },
       results: [{ puzzleId: "mate-in-one", status: "pending", errorCount: 0, retryCount: 0 }],
     },
+    {
+      kind: "run",
+      schemaVersion: 2,
+      id: "legacy-abandoned-run",
+      setId: onePuzzleSet.id,
+      status: "abandoned",
+      startedAt: "2026-10-10T09:00:00.000Z",
+      updatedAt: "2026-10-10T09:05:00.000Z",
+      currentPuzzleIndex: null,
+      currentPuzzle: null,
+      endedAt: "2026-10-10T09:05:00.000Z",
+      activeTimeMs: 297_000,
+      results: [{ puzzleId: "mate-in-one", status: "pending", errorCount: 1, retryCount: 0 }],
+    },
   ],
 };
 
@@ -129,7 +143,7 @@ test("counts visible solving intervals across pauses and shows active time with 
   await page.clock.fastForward(300);
 
   const activeTime = page.locator(".summary-metrics div").filter({ hasText: "Active solving time" }).locator("strong");
-  await expect(activeTime).toHaveText(/^(1[3-9]|2\d|30)s$/);
+  await expect(activeTime).toHaveText(/^1[2-6]s$/);
   const activeTimeText = await activeTime.textContent();
   await expect(page.getByText("Started Nov 1, 2026", { exact: false })).toBeVisible();
   await expect(page.getByText("Completed Nov 4, 2026", { exact: false })).toBeVisible();
@@ -160,6 +174,9 @@ test("shows legacy completed time as unavailable and tracks an older active Run 
     buffer: Buffer.from(JSON.stringify(legacyBackup)),
   });
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "History" }).click();
+
+  await page.locator(".history-row").filter({ hasText: "Oct 10, 2026" }).click();
+  await expect(page.getByText("Active solving time", { exact: true })).toHaveCount(0);
 
   await page.locator(".history-row").filter({ hasText: "Oct 1, 2026" }).click();
   await expect(page.getByText("Not recorded", { exact: true })).toBeVisible();

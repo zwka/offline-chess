@@ -1,4 +1,6 @@
-export function formatActiveTime(milliseconds: number): string {
+export function formatActiveTime(milliseconds: number | undefined): string {
+  if (milliseconds === undefined) return "Not recorded";
+
   const totalSeconds = Math.max(0, Math.round(milliseconds / 1_000));
   const hours = Math.floor(totalSeconds / 3_600);
   const minutes = Math.floor((totalSeconds % 3_600) / 60);

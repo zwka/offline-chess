@@ -283,9 +283,9 @@ function App() {
     return queueRunOperation(() => saveRun(run));
   }
 
-  function persistActiveTime(run: ActiveRun) {
+  function persistActiveTime(run: ActiveRun, updateView: boolean) {
     void queueRunOperation(() => saveActiveRunTime(run.id, run.activeTimeMs ?? 0)).then((persisted) => {
-      if (!persisted) return;
+      if (!persisted || !updateView) return;
       setData((current) => current ? {
         ...current,
         runs: current.runs.map((candidate) =>
@@ -660,7 +660,7 @@ function App() {
           <div className="score-ring" style={{ background: `conic-gradient(var(--accent) ${score.percentage * 3.6}deg, var(--line) 0)` }}><div><strong>{score.percentage}%</strong><span>first-try score</span></div></div>
           <div className="summary-copy"><p className="eyebrow">Run complete</p><h1>{set.name}</h1><p>You finished all {score.total} puzzles. The score counts only solutions found before a wrong move or solution reveal.</p><div className="summary-actions"><button className="primary-button" type="button" onClick={() => void startRun(set)}><Play size={17} /> Start another Run</button><button className="secondary-button" type="button" onClick={() => { setHistoryRunId(run.id); setView("history"); }}><History size={16} /> Inspect results</button></div></div>
         </section>
-        <div className="summary-metrics"><div><span>First-try solves</span><strong>{score.firstTrySolved}</strong></div><div><span>Completed after error</span><strong>{score.eventuallyCompleted}</strong></div><div><span>Skipped</span><strong>{score.notCompleted}</strong></div><div><span>Active solving time</span><strong>{run.activeTimeMs === undefined ? "Not recorded" : formatActiveTime(run.activeTimeMs)}</strong></div></div>
+        <div className="summary-metrics"><div><span>First-try solves</span><strong>{score.firstTrySolved}</strong></div><div><span>Completed after error</span><strong>{score.eventuallyCompleted}</strong></div><div><span>Skipped</span><strong>{score.notCompleted}</strong></div><div><span>Active solving time</span><strong>{formatActiveTime(run.activeTimeMs)}</strong></div></div>
       </main>
     );
   }
@@ -685,7 +685,7 @@ function App() {
               <>
                 <div className="history-detail-heading"><div><p className="eyebrow">Run detail</p><h2>{selectedHistorySet.name}</h2></div><span className={`run-badge ${selectedHistory.status}`}>{selectedHistory.status}</span></div>
                 <div className="detail-score"><strong>{scoreRun(selectedHistory).firstTrySolved}/{scoreRun(selectedHistory).total}</strong><span>first-try score / {scoreRun(selectedHistory).percentage}%</span></div>
-                <div className="history-run-meta"><div><span>Started</span><strong>{formatDate(selectedHistory.startedAt)}</strong></div><div><span>{selectedHistory.status === "active" ? "Status" : "Ended"}</span><strong>{selectedHistory.status === "active" ? "In progress" : formatDate(selectedHistory.endedAt)}</strong></div>{selectedHistory.status === "completed" && <div><span>Active solving time</span><strong>{selectedHistory.activeTimeMs === undefined ? "Not recorded" : formatActiveTime(selectedHistory.activeTimeMs)}</strong></div>}</div>
+                <div className="history-run-meta"><div><span>Started</span><strong>{formatDate(selectedHistory.startedAt)}</strong></div><div><span>{selectedHistory.status === "active" ? "Status" : "Ended"}</span><strong>{selectedHistory.status === "active" ? "In progress" : formatDate(selectedHistory.endedAt)}</strong></div>{selectedHistory.status === "completed" && <div><span>Active solving time</span><strong>{formatActiveTime(selectedHistory.activeTimeMs)}</strong></div>}</div>
                 <div className="result-list">{selectedHistory.results.map((result, index) => { const label = resultLabel(result); const puzzle = selectedHistorySet.puzzles[index]; return <div className="result-row" key={`${selectedHistory.id}-${result.puzzleId}`}><span className="result-index">{String(index + 1).padStart(2, "0")}</span><span className="result-puzzle"><strong>{puzzle?.id ?? result.puzzleId}</strong><small>{puzzle?.themes.slice(0, 2).map(formatTheme).join(" / ")}</small></span><span className={`result-label ${label.tone}`}>{label.tone === "good" ? <Check size={13} /> : label.tone === "warm" ? <CheckCircle2 size={13} /> : null}{label.label}</span><span className="result-retries">{result.retryCount} retries</span></div>; })}</div>
               </>
             ) : <div className="history-placeholder"><History size={26} /><h3>Select a Run</h3><p>Choose a record to inspect its Puzzle Results.</p></div>}
