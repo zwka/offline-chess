@@ -128,6 +128,7 @@ const runBaseSchema = z.object({
   setId: z.string().min(1),
   startedAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  activeTimeMs: z.number().int().nonnegative().optional(),
   results: z.array(puzzleResultSchema).min(1),
 });
 

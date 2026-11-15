@@ -10,6 +10,7 @@ import {
 import {
   consumePendingPuzzleSetHandoff,
   loadTrainerData,
+  saveActiveRunTime,
   savePuzzleSet,
   saveRun,
   setArchived,
@@ -244,6 +245,21 @@ describe("Trainer Puzzle Set Handoff consumption", () => {
     expect(persisted.sets).toHaveLength(1);
     expect(persisted.runs).toHaveLength(1);
     expect(persisted.runs[0]?.status).toBe("active");
+  });
+
+  it("checkpoints active time without reviving a Run abandoned in another tab", async () => {
+    const set = await buildSampleSet();
+    await savePuzzleSet(set, false);
+    const started = await startRunAtomically(set);
+
+    const checkpoint = await saveActiveRunTime(started.run.id, 4_321);
+    expect(checkpoint?.activeTimeMs).toBe(4_321);
+
+    await startRunAtomically(set);
+    await expect(saveActiveRunTime(started.run.id, 9_876)).resolves.toBeNull();
+
+    const persisted = await loadTrainerData();
+    expect(persisted.runs.find((run) => run.id === started.run.id)).toMatchObject({ status: "abandoned", activeTimeMs: 4_321 });
   });
 
   it("resumes an existing active Run at its current puzzle without duplicating the Puzzle Set or abandoning the Run when handed off again", async () => {

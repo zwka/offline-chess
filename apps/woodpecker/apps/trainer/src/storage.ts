@@ -122,6 +122,39 @@ export async function saveRun(run: Run): Promise<void> {
   }
 }
 
+export async function saveActiveRunTime(runId: string, activeTimeMs: number): Promise<ActiveRun | null> {
+  if (!Number.isSafeInteger(activeTimeMs) || activeTimeMs < 0) {
+    throw new Error("Active solving time must be a non-negative integer");
+  }
+
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(RUNS_STORE, "readwrite");
+    const complete = transactionComplete(transaction);
+    const store = transaction.objectStore(RUNS_STORE);
+    const value = await requestValue<unknown>(store.get(runId));
+
+    let run: Run;
+    try {
+      run = parseRun(value);
+    } catch {
+      await complete;
+      return null;
+    }
+    if (run.status !== "active") {
+      await complete;
+      return null;
+    }
+
+    const updated = { ...run, activeTimeMs };
+    store.put(updated);
+    await complete;
+    return updated;
+  } finally {
+    database.close();
+  }
+}
+
 export async function startRunAtomically(set: PuzzleSet): Promise<{ run: ActiveRun; runs: Run[] }> {
   const database = await openDatabase();
   try {
@@ -308,4 +341,3 @@ export async function consumePendingPuzzleSetHandoff(
     run: started.run,
   };
 }
-
