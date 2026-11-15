@@ -60,6 +60,8 @@ import {
   type TrainerData,
 } from "./storage";
 import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePosition, solutionLine } from "./puzzle-session";
+import { formatActiveTime } from "./run-format";
+import { useActiveRunTimer } from "./use-active-run-timer";
 
 type View = "library" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
@@ -219,6 +221,7 @@ function App() {
   const solutionLineRef = useRef<HTMLParagraphElement>(null);
   const setInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
+  const runSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -269,6 +272,24 @@ function App() {
   const historySet = historyRun ? data?.sets.find((record) => record.set.id === historyRun.setId)?.set : undefined;
   const visibleSets = data?.sets.filter((record) => !record.archived) ?? [];
 
+  function queueRunSave(run: Run): Promise<void> {
+    const pending = runSaveQueueRef.current.catch(() => undefined).then(() => saveRun(run));
+    runSaveQueueRef.current = pending;
+    return pending;
+  }
+
+  function persistActiveTime(run: ActiveRun) {
+    setData((current) => current ? {
+      ...current,
+      runs: current.runs.map((candidate) => candidate.id === run.id ? run : candidate),
+    } : current);
+    void queueRunSave(run).catch(() => {
+      setNotice("The active solving time could not be saved locally.");
+    });
+  }
+
+  const timeRun = useActiveRunTimer(activeRun, view === "solve", persistActiveTime);
+
   useEffect(() => {
     if (activeRun?.currentPuzzle.kind === "solution-revealed") solutionLineRef.current?.focus();
   }, [activeRun?.currentPuzzle, selectedRunId, view]);
@@ -297,24 +318,25 @@ function App() {
     nextRun: Run,
     options: { playback?: { run: ActiveRun; positions: string[] }; resetBoard?: boolean } = {},
   ) {
+    const timedRun = timeRun(nextRun);
     setIsPersisting(true);
     try {
-      await saveRun(nextRun);
+      await queueRunSave(timedRun);
       if (options.playback) {
         setBoardPlayback({
           ...options.playback,
           frameIndex: 0,
-          completesRun: nextRun.status === "completed",
+          completesRun: timedRun.status === "completed",
         });
       }
       if (options.resetBoard) setBoardResetVersion((current) => current + 1);
       setData((current) => current ? {
         ...current,
-        runs: current.runs.some((run) => run.id === nextRun.id)
-          ? current.runs.map((run) => run.id === nextRun.id ? nextRun : run)
-          : [...current.runs, nextRun],
+        runs: current.runs.some((run) => run.id === timedRun.id)
+          ? current.runs.map((run) => run.id === timedRun.id ? timedRun : run)
+          : [...current.runs, timedRun],
       } : current);
-      if (nextRun.status === "completed" && !options.playback) setView("summary");
+      if (timedRun.status === "completed" && !options.playback) setView("summary");
     } catch {
       setNotice("The latest action could not be saved locally. Your previous state is still intact.");
     } finally {
@@ -622,12 +644,12 @@ function App() {
     const score = scoreRun(run);
     return (
       <main className="summary-main">
-        <div className="summary-header"><button className="back-button" type="button" onClick={() => setView("library")}><ArrowLeft size={17} /> Library</button><span className="summary-date">Completed {formatDate(run.endedAt)}</span></div>
+        <div className="summary-header"><button className="back-button" type="button" onClick={() => setView("library")}><ArrowLeft size={17} /> Library</button><span className="summary-date"><span>Started {formatDate(run.startedAt)}</span><span>Completed {formatDate(run.endedAt)}</span></span></div>
         <section className="summary-hero">
           <div className="score-ring" style={{ background: `conic-gradient(var(--accent) ${score.percentage * 3.6}deg, var(--line) 0)` }}><div><strong>{score.percentage}%</strong><span>first-try score</span></div></div>
           <div className="summary-copy"><p className="eyebrow">Run complete</p><h1>{set.name}</h1><p>You finished all {score.total} puzzles. The score counts only solutions found before a wrong move or solution reveal.</p><div className="summary-actions"><button className="primary-button" type="button" onClick={() => void startRun(set)}><Play size={17} /> Start another Run</button><button className="secondary-button" type="button" onClick={() => { setHistoryRunId(run.id); setView("history"); }}><History size={16} /> Inspect results</button></div></div>
         </section>
-        <div className="summary-metrics"><div><span>First-try solves</span><strong>{score.firstTrySolved}</strong></div><div><span>Completed after error</span><strong>{score.eventuallyCompleted}</strong></div><div><span>Skipped</span><strong>{score.notCompleted}</strong></div><div><span>Run duration</span><strong>{Math.max(1, Math.round((new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime()) / 60000))} min</strong></div></div>
+        <div className="summary-metrics"><div><span>First-try solves</span><strong>{score.firstTrySolved}</strong></div><div><span>Completed after error</span><strong>{score.eventuallyCompleted}</strong></div><div><span>Skipped</span><strong>{score.notCompleted}</strong></div><div><span>Active solving time</span><strong>{run.activeTimeMs === undefined ? "Not recorded" : formatActiveTime(run.activeTimeMs)}</strong></div></div>
       </main>
     );
   }
@@ -652,6 +674,7 @@ function App() {
               <>
                 <div className="history-detail-heading"><div><p className="eyebrow">Run detail</p><h2>{selectedHistorySet.name}</h2></div><span className={`run-badge ${selectedHistory.status}`}>{selectedHistory.status}</span></div>
                 <div className="detail-score"><strong>{scoreRun(selectedHistory).firstTrySolved}/{scoreRun(selectedHistory).total}</strong><span>first-try score / {scoreRun(selectedHistory).percentage}%</span></div>
+                <div className="history-run-meta"><div><span>Started</span><strong>{formatDate(selectedHistory.startedAt)}</strong></div><div><span>{selectedHistory.status === "active" ? "Status" : "Ended"}</span><strong>{selectedHistory.status === "active" ? "In progress" : formatDate(selectedHistory.endedAt)}</strong></div>{selectedHistory.status === "completed" && <div><span>Active solving time</span><strong>{selectedHistory.activeTimeMs === undefined ? "Not recorded" : formatActiveTime(selectedHistory.activeTimeMs)}</strong></div>}</div>
                 <div className="result-list">{selectedHistory.results.map((result, index) => { const label = resultLabel(result); const puzzle = selectedHistorySet.puzzles[index]; return <div className="result-row" key={`${selectedHistory.id}-${result.puzzleId}`}><span className="result-index">{String(index + 1).padStart(2, "0")}</span><span className="result-puzzle"><strong>{puzzle?.id ?? result.puzzleId}</strong><small>{puzzle?.themes.slice(0, 2).map(formatTheme).join(" / ")}</small></span><span className={`result-label ${label.tone}`}>{label.tone === "good" ? <Check size={13} /> : label.tone === "warm" ? <CheckCircle2 size={13} /> : null}{label.label}</span><span className="result-retries">{result.retryCount} retries</span></div>; })}</div>
               </>
             ) : <div className="history-placeholder"><History size={26} /><h3>Select a Run</h3><p>Choose a record to inspect its Puzzle Results.</p></div>}

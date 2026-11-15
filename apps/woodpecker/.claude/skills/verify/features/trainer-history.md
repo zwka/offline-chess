@@ -1,12 +1,13 @@
 # Inspect Run history
 
-Trainer keeps completed Runs in local history and shows each Puzzle Result with the Run's first-try score.
+Trainer keeps completed Runs in local history and shows each Puzzle Result with the Run's first-try score, start/end dates, and Active Solving Time when it was recorded.
 
 ## Sub-features
 
 - `history-from-summary` opens results from a completed Run's `Inspect results` action.
 - `history-navigation` opens the History view from primary navigation.
 - `history-puzzle-result` shows the completed Run score and each Puzzle Result.
+- `history-active-time` shows a completed Run's Active Solving Time and start/end dates; older Runs without timing data show `Not recorded`.
 
 ## How to get to it (user POV)
 
@@ -22,7 +23,7 @@ Preconditions:
 - Trainer uses a fresh isolated profile so the created Run is unambiguous.
 
 - **Create a completed Run.** Run `node .claude/skills/verify/scripts/drive.mjs trainer-history`. The helper generates and imports a one-Puzzle set, starts a Run, and solves the Puzzle through the chessboard.
-- **Open results from summary.** It chooses `Inspect results`. History shows the set name, `1/1 first-try score`, and a `First-try solve` Puzzle Result.
+- **Open results from summary.** It chooses `Inspect results`. History shows the set name, `1/1 first-try score`, a `First-try solve` Puzzle Result, and the Run's start/end dates and Active Solving Time.
 - **Open History from navigation.** It chooses the `History` button in `nav[aria-label="Primary navigation"]` and confirms the same completed result remains visible.
 - **Confirm persistence.** The helper reads Trainer's IndexedDB in a read-only transaction and checks the stored Run is completed with a first-try Puzzle Result.
 - **Proof.** Inspect `30-trainer-run-summary`, `40-trainer-history-detail`, and `50-trainer-history-navigation` screenshots/state files plus `actions.jsonl` and `run-summary.json`.

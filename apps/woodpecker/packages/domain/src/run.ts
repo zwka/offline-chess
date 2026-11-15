@@ -74,6 +74,7 @@ export function createRun(set: PuzzleSet, timestamp = nowIso()): ActiveRun {
     status: "active",
     startedAt: timestamp,
     updatedAt: timestamp,
+    activeTimeMs: 0,
     currentPuzzleIndex: 0,
     currentPuzzle: {
       kind: "playing",

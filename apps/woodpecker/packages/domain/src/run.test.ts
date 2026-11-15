@@ -62,6 +62,15 @@ const set: PuzzleSet = {
 };
 
 describe("Run state", () => {
+  it("starts tracking new Runs while keeping active time unknown on older Runs", () => {
+    const created = createRun(set, "2026-01-01T00:00:00.000Z");
+    const { activeTimeMs: _activeTimeMs, ...olderRun } = created;
+
+    expect(created.activeTimeMs).toBe(0);
+    expect(parseRun({ ...created, activeTimeMs: 4_321 }).activeTimeMs).toBe(4_321);
+    expect(parseRun(olderRun).activeTimeMs).toBeUndefined();
+  });
+
   it("scores a clean solution and advances automatically", () => {
     const run = createRun(set, "2026-01-01T00:00:00.000Z");
     const afterFirst = completePuzzle(run, "2026-01-01T00:01:00.000Z");

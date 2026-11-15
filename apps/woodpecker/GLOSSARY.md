@@ -23,6 +23,10 @@ _Avoid_: Category, tag
 One traversal of a Puzzle Set. A player may start multiple Runs for the same Puzzle Set, but only one Run for that set may be active at a time; each Run keeps its own progress and score.
 _Avoid_: Session, attempt
 
+**Active Solving Time**:
+The accumulated time a player spends with the Trainer's Solve view visible during a Run, including thinking, retries, and solution review, but excluding time away from the view or while the app is hidden.
+_Avoid_: Run duration
+
 **Abandoned Run**:
 An unfinished Run that is closed when the player starts another Run for the same Puzzle Set. It remains in history and cannot be resumed.
 _Avoid_: Cancelled Run, deleted Run

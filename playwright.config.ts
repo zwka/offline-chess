@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number.parseInt(process.env.OFFLINE_CHESS_TEST_PORT ?? "4189", 10) || 4189;
 const baseURL = `http://127.0.0.1:${port}`;
+const launchOptions = process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {};
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -11,6 +12,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    launchOptions,
   },
   projects: [
     {
