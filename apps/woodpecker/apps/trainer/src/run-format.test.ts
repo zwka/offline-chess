@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatActiveTime } from "./run-format";
 
-describe("Run duration formatting", () => {
+describe("Active solving time formatting", () => {
   it("shows hours, minutes, and seconds for long durations", () => {
     expect(formatActiveTime(8_066_000)).toBe("2h 14m 26s");
   });

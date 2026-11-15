@@ -52,6 +52,7 @@ import {
   loadTrainerData,
   mergeTrainerBackup,
   saveRun,
+  saveActiveRunTime,
   savePuzzleSet,
   setArchived,
   deleteSetAndRuns,
@@ -272,23 +273,33 @@ function App() {
   const historySet = historyRun ? data?.sets.find((record) => record.set.id === historyRun.setId)?.set : undefined;
   const visibleSets = data?.sets.filter((record) => !record.archived) ?? [];
 
-  function queueRunSave(run: Run): Promise<void> {
-    const pending = runSaveQueueRef.current.catch(() => undefined).then(() => saveRun(run));
-    runSaveQueueRef.current = pending;
+  function queueRunOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = runSaveQueueRef.current.catch(() => undefined).then(operation);
+    runSaveQueueRef.current = pending.then(() => undefined, () => undefined);
     return pending;
   }
 
+  function queueRunSave(run: Run): Promise<void> {
+    return queueRunOperation(() => saveRun(run));
+  }
+
   function persistActiveTime(run: ActiveRun) {
-    setData((current) => current ? {
-      ...current,
-      runs: current.runs.map((candidate) => candidate.id === run.id ? run : candidate),
-    } : current);
-    void queueRunSave(run).catch(() => {
+    void queueRunOperation(() => saveActiveRunTime(run.id, run.activeTimeMs ?? 0)).then((persisted) => {
+      if (!persisted) return;
+      setData((current) => current ? {
+        ...current,
+        runs: current.runs.map((candidate) =>
+          candidate.id === persisted.id && candidate.status === "active"
+            ? { ...candidate, activeTimeMs: persisted.activeTimeMs }
+            : candidate,
+        ),
+      } : current);
+    }).catch(() => {
       setNotice("The active solving time could not be saved locally.");
     });
   }
 
-  const timeRun = useActiveRunTimer(activeRun, view === "solve", persistActiveTime);
+  const withActiveTime = useActiveRunTimer(activeRun, view === "solve", persistActiveTime);
 
   useEffect(() => {
     if (activeRun?.currentPuzzle.kind === "solution-revealed") solutionLineRef.current?.focus();
@@ -318,7 +329,7 @@ function App() {
     nextRun: Run,
     options: { playback?: { run: ActiveRun; positions: string[] }; resetBoard?: boolean } = {},
   ) {
-    const timedRun = timeRun(nextRun);
+    const timedRun = withActiveTime(nextRun);
     setIsPersisting(true);
     try {
       await queueRunSave(timedRun);

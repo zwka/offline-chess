@@ -15,20 +15,23 @@ type TimerSession = {
   run: ActiveRun;
 };
 
-const CHECKPOINT_INTERVAL_MS = 5_000;
+const CHECKPOINT_INTERVAL_MS = 1_000;
 
 export function useActiveRunTimer(
   run: ActiveRun | undefined,
   isSolving: boolean,
   persist: (run: ActiveRun) => void,
 ): (run: Run) => Run {
+  const runRef = useRef(run);
   const persistRef = useRef(persist);
   const sessionRef = useRef<TimerSession | null>(null);
+  runRef.current = run;
   persistRef.current = persist;
 
   function persistSnapshot(runId: string, tracker: ActiveTimeTracker) {
     const session = sessionRef.current;
-    if (!session || session.runId !== runId) return;
+    const currentRun = runRef.current;
+    if (!session || session.runId !== runId || !currentRun || currentRun.id !== runId) return;
     session.run = {
       ...session.run,
       activeTimeMs: Math.round(readActiveTimeMs(tracker, performance.now())),
@@ -43,7 +46,7 @@ export function useActiveRunTimer(
     persistSnapshot(runId, session.tracker);
   }
 
-  function timeRun(nextRun: Run): Run {
+  function withActiveTime(nextRun: Run): Run {
     const session = sessionRef.current;
     if (!session || session.runId !== nextRun.id) return nextRun;
 
@@ -103,5 +106,5 @@ export function useActiveRunTimer(
     };
   }, [run?.id, isSolving]);
 
-  return timeRun;
+  return withActiveTime;
 }

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+if (process.env.CHROME_BIN) {
+  test.use({ launchOptions: { executablePath: process.env.CHROME_BIN } });
+}
+
 const onePuzzleSet = {
   kind: "puzzle-set",
   schemaVersion: 1,
@@ -36,6 +40,46 @@ const onePuzzleSet = {
   }],
 };
 
+const legacyBackup = {
+  kind: "trainer-backup",
+  schemaVersion: 2,
+  exportedAt: "2026-10-01T12:00:00.000Z",
+  puzzleSets: [{ set: onePuzzleSet, archived: false }],
+  runs: [
+    {
+      kind: "run",
+      schemaVersion: 2,
+      id: "legacy-completed-run",
+      setId: onePuzzleSet.id,
+      status: "completed",
+      startedAt: "2026-10-01T10:00:00.000Z",
+      updatedAt: "2026-10-01T10:01:00.000Z",
+      currentPuzzleIndex: null,
+      currentPuzzle: null,
+      endedAt: "2026-10-01T10:01:00.000Z",
+      results: [{
+        puzzleId: "mate-in-one",
+        status: "first-try-solved",
+        errorCount: 0,
+        retryCount: 0,
+        completedAt: "2026-10-01T10:01:00.000Z",
+      }],
+    },
+    {
+      kind: "run",
+      schemaVersion: 2,
+      id: "legacy-active-run",
+      setId: onePuzzleSet.id,
+      status: "active",
+      startedAt: "2026-10-20T09:00:00.000Z",
+      updatedAt: "2026-10-20T09:00:00.000Z",
+      currentPuzzleIndex: 0,
+      currentPuzzle: { kind: "playing", moveIndex: 1, retryCount: 0 },
+      results: [{ puzzleId: "mate-in-one", status: "pending", errorCount: 0, retryCount: 0 }],
+    },
+  ],
+};
+
 test("counts visible solving intervals across pauses and shows active time with Run dates", async ({ page }) => {
   await page.clock.install({ time: new Date("2026-11-01T10:00:00.000Z") });
   await page.goto("/woodpecker-trainer/");
@@ -55,7 +99,15 @@ test("counts visible solving intervals across pauses and shows active time with 
   await page.clock.fastForward(5_500);
 
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Library" }).click();
-  await page.clock.fastForward(2 * 24 * 60 * 60 * 1_000);
+  await page.clock.fastForward(24 * 60 * 60 * 1_000);
+  await page.locator(".set-card").filter({ has: page.getByRole("heading", { name: "Active time test" }) })
+    .getByRole("button", { name: /Resume/i }).click();
+  await expect(page.getByText("Puzzle 01")).toBeVisible();
+  await page.clock.fastForward(2_500);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Warm-up tactics" })).toBeVisible();
+  await page.clock.fastForward(24 * 60 * 60 * 1_000);
   await page.locator(".set-card").filter({ has: page.getByRole("heading", { name: "Active time test" }) })
     .getByRole("button", { name: /Resume/i }).click();
   await expect(page.getByText("Puzzle 01")).toBeVisible();
@@ -70,7 +122,7 @@ test("counts visible solving intervals across pauses and shows active time with 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await page.clock.fastForward(5_000);
+  await page.clock.fastForward(2_500);
 
   await page.locator('[data-square="d5"]').click();
   await page.locator('[data-square="g2"]').click();
@@ -94,4 +146,36 @@ test("counts visible solving intervals across pauses and shows active time with 
   await page.locator(".history-row").filter({ hasText: "Active time test" }).click();
   await expect(page.getByText("Active solving time", { exact: true })).toBeVisible();
   await expect(page.getByText(activeTimeText ?? "", { exact: true })).toBeVisible();
+});
+
+test("shows legacy completed time as unavailable and tracks an older active Run from resume", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-11-15T10:00:00.000Z") });
+  await page.goto("/woodpecker-trainer/");
+  await expect(page.getByRole("heading", { name: "Warm-up tactics" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Restore backup/i }).click();
+  await page.locator('input[type="file"]').nth(1).setInputFiles({
+    name: "legacy-trainer-backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(legacyBackup)),
+  });
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "History" }).click();
+
+  await page.locator(".history-row").filter({ hasText: "Oct 1, 2026" }).click();
+  await expect(page.getByText("Not recorded", { exact: true })).toBeVisible();
+
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Library" }).click();
+  await page.locator(".set-card").filter({ has: page.getByRole("heading", { name: "Active time test" }) })
+    .getByRole("button", { name: /Resume/i }).click();
+  await expect(page.getByText("Puzzle 01")).toBeVisible();
+  await page.clock.fastForward(3_000);
+
+  await page.locator('[data-square="d5"]').click();
+  await page.locator('[data-square="g2"]').click();
+  await page.clock.fastForward(300);
+
+  const activeTime = page.locator(".summary-metrics div").filter({ hasText: "Active solving time" }).locator("strong");
+  await expect(activeTime).toHaveText(/^\d+s$/);
+  await expect(page.getByText("Started Oct 20, 2026", { exact: false })).toBeVisible();
+  await expect(page.getByText("Completed Nov 15, 2026", { exact: false })).toBeVisible();
 });
