@@ -136,6 +136,9 @@ function App() {
 
   const availableThemes = useMemo(() => manifest?.themes ?? FALLBACK_THEMES, [manifest]);
   const ratingLabel = `${ratingMin.toLocaleString()} - ${ratingMax.toLocaleString()}`;
+  const scanPercent = manifest
+    ? Math.min(100, Math.floor((progress.scanned / Math.max(1, manifest.recordCount)) * 100))
+    : 0;
 
   function toggleTheme(themeName: string) {
     setSelectedThemes((current) => current.includes(themeName)
@@ -367,7 +370,24 @@ function App() {
                 <div className="empty-orbit"><Target size={26} /></div>
                 <h3>Make the first selection</h3>
                 <p>Generated puzzles will stay in this browser until you export the set. The stored seed makes the order reproducible.</p>
-                {isGenerating && <div className="scan-progress"><span style={{ width: `${Math.min(100, Math.max(8, progress.scanned / Math.max(1, manifest?.recordCount ?? 1) * 100))}%` }} /></div>}
+                {isGenerating && (
+                  <div className="scan-progress-status">
+                    <div className="scan-progress-label" aria-live="polite">
+                      <span>Scanning local puzzle records</span>
+                      <strong>{scanPercent}%</strong>
+                    </div>
+                    <div
+                      className="scan-progress"
+                      role="progressbar"
+                      aria-label="Scanning local puzzle records"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={scanPercent}
+                    >
+                      <span style={{ width: `${scanPercent}%` }} />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="set-preview">
