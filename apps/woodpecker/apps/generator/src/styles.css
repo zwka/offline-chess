@@ -129,7 +129,10 @@ h3 { margin-bottom: 8px; font-size: 20px; }
 .empty-orbit { display: grid; place-items: center; width: 65px; height: 65px; margin-bottom: 22px; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--warm); background: var(--warm-wash); }
 .empty-workspace h3 { margin-bottom: 9px; }
 .empty-workspace p { max-width: 350px; margin-bottom: 23px; color: var(--muted); font-size: 13px; line-height: 1.6; }
-.scan-progress { width: min(300px, 100%); height: 5px; border-radius: 99px; overflow: hidden; background: var(--line); }
+.scan-progress-status { width: min(300px, 100%); }
+.scan-progress-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.scan-progress-label strong { color: var(--accent-strong); font-variant-numeric: tabular-nums; }
+.scan-progress { width: 100%; height: 5px; border-radius: 99px; overflow: hidden; background: var(--line); }
 .scan-progress span { display: block; height: 100%; border-radius: inherit; background: var(--warm); transition: width 250ms ease; }
 .set-preview { padding-top: 25px; }
 .metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; border: 1px solid var(--line); background: var(--line); }

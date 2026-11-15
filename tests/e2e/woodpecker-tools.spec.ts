@@ -1,6 +1,67 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Woodpecker Generator and Trainer in Suite", () => {
+  test("shows scan completion as a percentage while streaming local puzzle records", async ({ page }) => {
+    const manifestResponse = await page.request.get("/woodpecker-generator/puzzle-index-manifest.json");
+    const manifest = await manifestResponse.json();
+    const indexResponse = await page.request.get("/woodpecker-generator/puzzle-index.jsonl");
+    const puzzleLine = (await indexResponse.text()).split("\n").find((line) => line.trim().length > 0);
+    if (!puzzleLine) throw new Error("The sample puzzle index must contain at least one record");
+
+    await page.addInitScript(({ manifest, puzzleLine }) => {
+      const originalFetch = window.fetch.bind(window);
+      const totalRecords = 20_000;
+      const firstBatch = 10_000;
+      const encodeRecords = (count: number) => new TextEncoder().encode(`${puzzleLine}\n`.repeat(count));
+
+      window.fetch = async (input, init) => {
+        const url = new URL(typeof input === "string" ? input : input.url, window.location.href);
+        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+
+        if (url.pathname.endsWith("/puzzle-index.generated-manifest.json") || url.pathname.endsWith("/puzzle-index.generated.jsonl.gz")) {
+          return new Response("Not found", { status: 404 });
+        }
+        if (url.pathname.endsWith("/puzzle-index-manifest.json")) {
+          return new Response(JSON.stringify({ ...manifest, recordCount: totalRecords }), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.pathname.endsWith("/puzzle-index.jsonl") && method === "HEAD") {
+          return new Response(null, { status: 200 });
+        }
+        if (url.pathname.endsWith("/puzzle-index.jsonl")) {
+          const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(encodeRecords(firstBatch));
+              const testWindow = window as typeof window & { releasePuzzleIndex?: () => void };
+              testWindow.releasePuzzleIndex = () => {
+                controller.enqueue(encodeRecords(totalRecords - firstBatch));
+                controller.close();
+              };
+            },
+          });
+          return new Response(stream, { headers: { "content-type": "application/x-ndjson" } });
+        }
+
+        return originalFetch(input, init);
+      };
+    }, { manifest, puzzleLine });
+
+    await page.goto("/woodpecker-generator/");
+    await expect(page.getByText("20,000 local records")).toBeVisible();
+    await page.getByRole("button", { name: /Generate puzzle set/i }).click();
+
+    const progress = page.getByRole("progressbar", { name: "Scanning local puzzle records" });
+    await expect(progress).toHaveAttribute("aria-valuenow", "50");
+    await expect(page.getByText("50%", { exact: true })).toBeVisible();
+
+    await page.evaluate(() => {
+      const testWindow = window as typeof window & { releasePuzzleIndex?: () => void };
+      testWindow.releasePuzzleIndex?.();
+    });
+    await expect(page.getByRole("status")).not.toContainText("Scanning the local puzzle index...");
+  });
+
   test("launches Generator and Trainer from the Landing Page, resolves subpath assets, uses Suite icons, and exposes no standalone manifest or service worker", async ({ page }) => {
     await page.goto("/");
 
