@@ -27,6 +27,7 @@ import {
   type ThemeChoice,
 } from "@offline-woodpecker/domain";
 import { loadPuzzleIndex } from "./load-puzzle-index";
+import { useSavedGeneratorActivity } from "./saved-activity";
 
 const FALLBACK_THEMES = ["advantage", "crushing", "endgame", "fork", "mate", "middlegame", "short"];
 const TRAINER_URL = import.meta.env.VITE_TRAINER_URL ?? "/woodpecker-trainer/";
@@ -100,14 +101,16 @@ function App() {
   const [manifest, setManifest] = useState<PuzzleIndexManifest | null>(null);
   const [indexPath, setIndexPath] = useState(`${import.meta.env.BASE_URL}puzzle-index.jsonl`);
   const [manifestError, setManifestError] = useState<string | null>(null);
-  const [setName, setSetName] = useState("Focused tactics");
-  const [ratingMin, setRatingMin] = useState(1100);
-  const [ratingMax, setRatingMax] = useState(1600);
-  const [count, setCount] = useState(12);
-  const [themeMatch, setThemeMatch] = useState<"all" | "any">("all");
-  const [selectedThemes, setSelectedThemes] = useState<string[]>(["short"]);
-  const [seed, setSeed] = useState("woodpecker-2026");
-  const [generatedSet, setGeneratedSet] = useState<PuzzleSet | null>(null);
+  const savedActivity = useSavedGeneratorActivity();
+  const { activity, setActivity } = savedActivity;
+  const { setName, ratingMin, ratingMax, count, themeMatch, selectedThemes, seed, generatedSet } = activity;
+  const setSetName = (setName: string) => setActivity(a => ({ ...a, setName }));
+  const setRatingMin = (ratingMin: number) => setActivity(a => ({ ...a, ratingMin }));
+  const setRatingMax = (ratingMax: number) => setActivity(a => ({ ...a, ratingMax }));
+  const setCount = (count: number) => setActivity(a => ({ ...a, count }));
+  const setThemeMatch = (themeMatch: "all" | "any") => setActivity(a => ({ ...a, themeMatch }));
+  const setSeed = (seed: string) => setActivity(a => ({ ...a, seed }));
+  const setGeneratedSet = (generatedSet: PuzzleSet | null) => setActivity(a => ({ ...a, generatedSet }));
   const [isGenerating, setIsGenerating] = useState(false);
   const outputHeading = useRef<HTMLHeadingElement>(null);
   const noticeElement = useRef<HTMLDivElement>(null);
@@ -138,8 +141,6 @@ function App() {
         if (cancelled) return;
         setManifest(nextManifest);
         setIndexPath(index);
-        setRatingMin(Math.max(nextManifest.ratingMin, 1100));
-        setRatingMax(Math.min(nextManifest.ratingMax, 1600));
         setManifestError(null);
       })
       .catch((error: unknown) => {
@@ -157,9 +158,9 @@ function App() {
     : 0;
 
   function toggleTheme(themeName: string) {
-    setSelectedThemes((current) => current.includes(themeName)
-      ? current.filter((theme) => theme !== themeName)
-      : [...current, themeName]);
+    setActivity(a => ({ ...a, selectedThemes: a.selectedThemes.includes(themeName)
+      ? a.selectedThemes.filter((theme) => theme !== themeName)
+      : [...a.selectedThemes, themeName] }));
   }
 
   function randomizeSeed() {
@@ -190,6 +191,8 @@ function App() {
   async function handleDoPuzzles() {
     const namedSet = resolveNamedGeneratedSet();
     if (!namedSet) return;
+    if (!savedActivity.persist({ ...activity, generatedSet: namedSet }, true) &&
+      !window.confirm("Generator activity could not be saved. Continue to Trainer anyway? You can export the Puzzle Set before leaving instead.")) return;
     try {
       await enqueuePuzzleSetHandoff(namedSet);
       window.location.assign(TRAINER_URL);
@@ -203,12 +206,20 @@ function App() {
       setNotice({ kind: "error", text: "The local puzzle index has not loaded yet." });
       return;
     }
+    if (![ratingMin, ratingMax].every(n => Number.isSafeInteger(n) && n >= 0)) {
+      setNotice({ kind: "error", text: "Choose a non-negative whole number for each rating." });
+      return;
+    }
     if (ratingMin > ratingMax) {
       setNotice({ kind: "error", text: "The minimum rating must be at or below the maximum rating." });
       return;
     }
     if (count < 1) {
       setNotice({ kind: "error", text: "Choose at least one puzzle." });
+      return;
+    }
+    if (!Number.isSafeInteger(count) || count > 1000) {
+      setNotice({ kind: "error", text: "Choose a whole number of puzzles from 1 to 1000." });
       return;
     }
     if (setName.trim().length === 0) {
@@ -248,7 +259,7 @@ function App() {
         selection,
         puzzles: result.puzzles,
       });
-      setGeneratedSet(nextSet);
+      setActivity(a => ({ ...a, generatedSet: nextSet, matches: result.matches }));
       setNotice({ kind: "success", text: `${nextSet.puzzles.length} puzzles selected from ${result.matches} matches.` });
     } catch {
       setNotice({ kind: "error", text: "The local index contains an invalid record or could not be read." });
@@ -259,7 +270,10 @@ function App() {
 
   return (
     <div className="app-shell generator-shell">
-      <header className="topbar">
+      <header className="topbar" onClick={(event) => {
+        if (!(event.target as Element).closest("a")) return;
+        if (!savedActivity.persist(activity, true) && !window.confirm("Generator activity could not be saved. Leave anyway and lose unsaved changes?")) event.preventDefault();
+      }}>
         <a className="brand-lockup" href="/" aria-label="Offline Chess">
           <svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><use href="/identity/symbols.svg#open-board" /></svg>
           <span className="brand-name">Offline Chess</span>
@@ -283,7 +297,21 @@ function App() {
           </div>
         </section>
 
-        <div className="generator-grid">
+        {savedActivity.message && <div className={`notice ${savedActivity.failed ? "error" : "info"}`} aria-live="polite">
+          <span>{savedActivity.message}</span>
+          {savedActivity.failed && savedActivity.entry === "active" && <button className="secondary-button compact" type="button" onClick={() => savedActivity.persist(activity, true)}>Retry save</button>}
+        </div>}
+        {savedActivity.entry === "checking" ? <p>Checking saved Generator activity…</p> : savedActivity.entry === "choice" ? (
+          <section className="panel" aria-labelledby="resume-generator">
+            <h2 id="resume-generator">Resume Generator activity?</h2>
+            <p>{savedActivity.savedSummary}</p>
+            <p>Your saved filters and any completed generated output are ready to Resume. Start fresh replaces only this Generator activity, not imported Trainer content or completed history.</p>
+            <div className="workspace-actions">
+              <button className="primary-button" type="button" onClick={savedActivity.resume}>Resume</button>
+              <button className="secondary-button" type="button" onClick={savedActivity.startFresh}>Start fresh</button>
+            </div>
+          </section>
+        ) : <div className="generator-grid">
           <section className="panel filter-panel" id="filters">
             <div className="panel-heading">
               <div>
@@ -389,7 +417,7 @@ function App() {
               <div className="empty-workspace">
                 <div className="empty-orbit"><Target size={26} /></div>
                 <h3>Make the first selection</h3>
-                <p>Generate a Puzzle Set, then choose Do Puzzles or export JSON. Output is only kept on this page until you leave or reload; export a file to keep a copy.</p>
+                <p>Generate a Puzzle Set, then choose Do Puzzles or export JSON. Filters and completed output are saved on this device when storage is available. Export JSON to keep a separate copy.</p>
                 {isGenerating && (
                   <div className="scan-progress-status">
                     <div className="scan-progress-label" aria-live="polite">
@@ -413,7 +441,7 @@ function App() {
               <div className="set-preview">
                 <div className="metric-strip">
                   <div><span className="metric-label">Puzzles</span><strong>{generatedSet.puzzles.length}</strong></div>
-                  <div><span className="metric-label">Matches</span><strong>{progress.matches.toLocaleString()}</strong></div>
+                  <div><span className="metric-label">Matches</span><strong>{activity.matches.toLocaleString()}</strong></div>
                   <div><span className="metric-label">Rating</span><strong>{generatedSet.selection.ratingMin}-{generatedSet.selection.ratingMax}</strong></div>
                   <div><span className="metric-label">Order seed</span><strong className="seed-value">{generatedSet.selection.seed}</strong></div>
                 </div>
@@ -433,7 +461,7 @@ function App() {
               </div>
             )}
           </section>
-        </div>
+        </div>}
       </main>
 
       <footer className="app-footer"><span>Woodpecker / local-first chess practice</span><span>Source data: <a href="https://database.lichess.org/" target="_blank" rel="noreferrer">Lichess open database</a></span></footer>

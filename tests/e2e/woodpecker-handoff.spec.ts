@@ -61,13 +61,10 @@ test.describe("Woodpecker Generator to Trainer Puzzle Set Handoff ('Do Puzzles')
     await page.getByRole("link", { name: "Generator →" }).click();
     await expect(page).toHaveURL(/\/woodpecker-generator\/$/);
 
-    // Generate the identical Puzzle Set (same seed & parameters -> same contentHash)
-    await page.getByText("Advanced options", { exact: true }).click();
-    await page.getByLabel("Set name").fill("Woodpecker Cycle 1");
-    await page.getByLabel("Puzzles").fill("2");
-    await page.getByLabel("Random seed").fill("woodpecker-2026");
-    await page.getByRole("button", { name: /Generate puzzle set/i }).click();
-    await expect(page.getByRole("status")).toContainText("2 puzzles selected from 6 matches.");
+    // Resume the persisted output; opening Generator does not perform Handoff.
+    await expect(page.getByRole("heading", { name: "Resume Generator activity?" })).toBeVisible();
+    await page.getByRole("button", { name: "Resume", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Generated output" }).getByRole("heading", { name: "Woodpecker Cycle 1" })).toBeVisible();
 
     // Click "Do Puzzles" again -> resumes existing active Run on Puzzle 02
     await page.getByRole("button", { name: /Do Puzzles/i }).click();
@@ -85,5 +82,32 @@ test.describe("Woodpecker Generator to Trainer Puzzle Set Handoff ('Do Puzzles')
     await expect(page.locator(".history-row")).toHaveCount(1);
     await expect(page.locator(".history-row")).toContainText("active");
     await expect(page.locator(".history-row")).not.toContainText("abandoned");
+  });
+
+  test("Handoff of restored output unarchives the original Puzzle Set and preserves its completed Run", async ({ page }) => {
+    await page.goto("/woodpecker-generator/");
+    await expect(page.getByText("12 local records")).toBeVisible();
+    await page.getByLabel("Set name").fill("Archive Handoff");
+    await page.getByLabel("Puzzles", { exact: true }).fill("1");
+    await page.getByRole("button", { name: "Generate puzzle set" }).click();
+    await page.getByRole("button", { name: "Do Puzzles", exact: true }).click();
+    await page.getByRole("button", { name: "Show solution", exact: true }).click();
+    await page.getByRole("button", { name: "Next puzzle", exact: true }).click();
+    const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+    await navigation.getByRole("button", { name: "Library", exact: true }).click();
+    await page.getByRole("button", { name: "Archive Archive Handoff", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Archive Handoff", exact: true })).toHaveCount(0);
+    await page.getByRole("link", { name: "Generator →" }).click();
+    await page.getByRole("button", { name: "Resume", exact: true }).click();
+    await page.getByRole("button", { name: "Do Puzzles", exact: true }).click();
+    await expect(page.getByText("Puzzle 01", { exact: true })).toBeVisible();
+    await navigation.getByRole("button", { name: "Library", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Archive Handoff", exact: true })).toHaveCount(1);
+    await navigation.getByRole("button", { name: "History", exact: true }).click();
+    const history = page.getByRole("button").filter({ hasText: /Archive Handoff.*(?:active|completed)/ });
+    await expect(history).toHaveCount(2);
+    await expect(history.filter({ hasText: "completed" })).toHaveCount(1);
+    await expect(history.filter({ hasText: "active" })).toHaveCount(1);
+    await expect(history.filter({ hasText: "abandoned" })).toHaveCount(0);
   });
 });

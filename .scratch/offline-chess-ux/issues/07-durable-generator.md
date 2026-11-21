@@ -1,6 +1,6 @@
 # Keep Generator filters and output across reopening
 
-Status: ready-for-agent
+Status: claimed
 GitHub issue: https://github.com/zwka/offline-chess/issues/10
 
 ## Parent
