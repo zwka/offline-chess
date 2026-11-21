@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -109,11 +109,27 @@ function App() {
   const [seed, setSeed] = useState("woodpecker-2026");
   const [generatedSet, setGeneratedSet] = useState<PuzzleSet | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const outputHeading = useRef<HTMLHeadingElement>(null);
+  const noticeElement = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState({ scanned: 0, matches: 0 });
   const [notice, setNotice] = useState<{ kind: "info" | "error" | "success"; text: string }>({
     kind: "info",
     text: "The sample index is ready. A release build can replace it with the full local index.",
   });
+
+  useEffect(() => {
+    if (generatedSet || isGenerating) {
+      outputHeading.current?.focus({ preventScroll: true });
+      outputHeading.current?.closest("section")?.scrollIntoView({ block: "start" });
+    }
+  }, [generatedSet, isGenerating]);
+
+  useEffect(() => {
+    if (notice.kind === "error") {
+      noticeElement.current?.focus({ preventScroll: true });
+      noticeElement.current?.scrollIntoView({ block: "center" });
+    }
+  }, [notice]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +170,7 @@ function App() {
     if (!generatedSet) return null;
     const trimmedName = setName.trim();
     if (trimmedName.length === 0) {
-      setNotice({ kind: "error", text: "Give the Puzzle Set a name before exporting." });
+      setNotice({ kind: "error", text: "Give the Puzzle Set a name before solving or exporting." });
       return null;
     }
     if (trimmedName === generatedSet.name) {
@@ -196,7 +212,7 @@ function App() {
       return;
     }
     if (setName.trim().length === 0) {
-      setNotice({ kind: "error", text: "Give the Puzzle Set a name before exporting." });
+      setNotice({ kind: "error", text: "Give the Puzzle Set a name before generating." });
       return;
     }
 
@@ -244,13 +260,10 @@ function App() {
   return (
     <div className="app-shell generator-shell">
       <header className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark">W</div>
-          <div>
-            <div className="brand-name">Woodpecker</div>
-            <div className="brand-section">Generator</div>
-          </div>
-        </div>
+        <a className="brand-lockup" href="/" aria-label="Offline Chess">
+          <svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><use href="/identity/symbols.svg#open-board" /></svg>
+          <span className="brand-name">Offline Chess</span>
+        </a>
         <div className="topbar-actions">
           <a className="quiet-link" href={TRAINER_URL}>Trainer →</a>
           <ThemeControl theme={theme.theme} onToggle={theme.toggleTheme} />
@@ -260,7 +273,7 @@ function App() {
       <main className="generator-main">
         <section className="page-intro">
           <div>
-            <p className="eyebrow">Offline set builder</p>
+            <p className="eyebrow tool-title"><svg viewBox="0 0 48 48" width="28" height="28" aria-hidden="true"><use href="/identity/symbols.svg#woodpecker-generator" /></svg> Woodpecker Generator</p>
             <h1>Shape the work before you sit down to solve.</h1>
             <p className="intro-copy">Select a narrow training slice from the local Lichess index, keep its order reproducible, and carry the finished set into Trainer.</p>
           </div>
@@ -271,7 +284,7 @@ function App() {
         </section>
 
         <div className="generator-grid">
-          <section className="panel filter-panel">
+          <section className="panel filter-panel" id="filters">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">01 / Selection</p>
@@ -300,14 +313,17 @@ function App() {
               </div>
             </div>
 
+            <div className="form-row">
+              <label className="field-grow" htmlFor="puzzle-count">
+                <span className="field-label">Puzzles</span>
+                <input id="puzzle-count" className="number-input wide" type="number" min="1" max="1000" value={count} onChange={(event) => setCount(Number(event.target.value))} />
+              </label>
+            </div>
+
             <div className="field-group">
               <div className="field-label-row">
                 <span className="field-label">Tactic themes</span>
                 <span className="field-value">{selectedThemes.length === 0 ? "Any" : `${selectedThemes.length} selected`}</span>
-              </div>
-              <div className="segmented-control" role="group" aria-label="Theme matching">
-                <button className={themeMatch === "all" ? "segment active" : "segment"} type="button" onClick={() => setThemeMatch("all")}>All selected</button>
-                <button className={themeMatch === "any" ? "segment active" : "segment"} type="button" onClick={() => setThemeMatch("any")}>Any selected</button>
               </div>
               <div className="theme-grid">
                 {availableThemes.map((themeName) => (
@@ -320,11 +336,13 @@ function App() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label className="field-grow" htmlFor="puzzle-count">
-                <span className="field-label">Puzzles</span>
-                <input id="puzzle-count" className="number-input wide" type="number" min="1" max="1000" value={count} onChange={(event) => setCount(Number(event.target.value))} />
-              </label>
+            <details className="advanced-options">
+              <summary>Advanced options</summary>
+              <p className="advanced-help">Keep the same seed and filters to reproduce the puzzle order.</p>
+              <div className="segmented-control" role="group" aria-label="Theme matching">
+                <button className={themeMatch === "all" ? "segment active" : "segment"} aria-pressed={themeMatch === "all"} type="button" onClick={() => setThemeMatch("all")}>All selected</button>
+                <button className={themeMatch === "any" ? "segment active" : "segment"} aria-pressed={themeMatch === "any"} type="button" onClick={() => setThemeMatch("any")}>Any selected</button>
+              </div>
               <label className="field-grow" htmlFor="random-seed">
                 <span className="field-label">Random seed</span>
                 <div className="input-with-action">
@@ -332,7 +350,7 @@ function App() {
                   <button className="icon-button input-action" type="button" onClick={randomizeSeed} title="Create a new seed" aria-label="Create a new seed"><RefreshCw size={16} /></button>
                 </div>
               </label>
-            </div>
+            </details>
 
             <button className="primary-button generate-button" type="button" onClick={generate} disabled={isGenerating || !manifest}>
               {isGenerating ? <RefreshCw size={18} className="spin" /> : <Sparkles size={18} />}
@@ -341,17 +359,17 @@ function App() {
             </button>
 
             {manifestError && <p className="inline-error">{manifestError}</p>}
-            <div className={`notice ${notice.kind}`} role="status">
+            <div className={`notice ${notice.kind}`} role="status" tabIndex={-1} ref={noticeElement}>
               <span className="notice-mark">{notice.kind === "success" ? <Check size={15} /> : notice.kind === "error" ? "!" : <CircleHelp size={15} />}</span>
               <span>{notice.text}</span>
             </div>
           </section>
 
-          <section className="workspace-panel">
+          <section className="workspace-panel" aria-label="Generated output" aria-busy={isGenerating}>
             <div className="workspace-heading">
               <div>
-                <p className="eyebrow">02 / Output</p>
-                <h2>{generatedSet ? (setName.trim() || generatedSet.name) : "Your set will appear here"}</h2>
+                <p className="eyebrow">{generatedSet ? "Puzzle Set ready" : "02 / Output"}</p>
+                <h2 ref={outputHeading} tabIndex={-1}>{generatedSet ? (setName.trim() || generatedSet.name) : isGenerating ? "Selecting your puzzles" : "Your set will appear here"}</h2>
               </div>
               {generatedSet && (
                 <div className="workspace-actions">
@@ -365,11 +383,13 @@ function App() {
               )}
             </div>
 
+            <a className="back-to-filters" href="#filters">Back to filters</a>
+
             {!generatedSet ? (
               <div className="empty-workspace">
                 <div className="empty-orbit"><Target size={26} /></div>
                 <h3>Make the first selection</h3>
-                <p>Generated puzzles will stay in this browser until you export the set. The stored seed makes the order reproducible.</p>
+                <p>Generate a Puzzle Set, then choose Do Puzzles or export JSON. Output is only kept on this page until you leave or reload; export a file to keep a copy.</p>
                 {isGenerating && (
                   <div className="scan-progress-status">
                     <div className="scan-progress-label" aria-live="polite">
