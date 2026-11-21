@@ -1,0 +1,11 @@
+#suite-offline-status { display: inline-block; padding: .35rem; font: 0.875rem system-ui, sans-serif; color: var(--text, var(--color-text, #eee)); }
+#suite-offline-status > button { font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: .5rem; padding: .6rem .75rem; min-height: 44px; cursor: pointer; }
+#suite-offline-status dialog { color: #eee; background: #202724; border: 1px solid #9b8759; border-radius: .75rem; padding: 1.25rem; width: min(32rem, calc(100vw - 3rem)); max-height: 80dvh; overflow: auto; font: 1rem/1.5 system-ui, sans-serif; }
+html[data-theme="light"] #suite-offline-status { color: #262c27; }
+html[data-theme="light"] #suite-offline-status dialog { color: #262c27; background: #faf7ee; }
+#suite-offline-status dialog::backdrop { background: #0008; }
+#suite-offline-status h2 { font: bold 1.4rem Georgia, serif; }
+#suite-offline-status dialog button { font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: .4rem; padding: .6rem .8rem; min-height: 44px; cursor: pointer; }
+#suite-offline-status form { display: inline-block; margin: .5rem; }
+#suite-offline-status li { overflow-wrap: anywhere; }
+#suite-offline-status :focus-visible { outline: 3px solid #b69a56; outline-offset: 3px; }
