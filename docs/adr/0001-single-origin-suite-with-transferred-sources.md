@@ -15,3 +15,9 @@ Blind Chess, PGN Reader and Woodpecker (Generator and Trainer) are combined into
 - Generator's full puzzle index (~437 MB) is never precached. It is cached at runtime, as the Source App already does.
 - Data saved by installs of the Source Apps on their own origins is not migrated.
 - Deliberate functional exceptions: the Theme is reduced to light/dark only, defaults to dark, and is shared across the Suite. The Handoff ("Do Puzzles") is added between Generator and Trainer, which only works because both are on the same origin.
+
+## Approved UX expansion
+
+The [Offline Chess UX spec](../../.scratch/offline-chess-ux/spec.md) intentionally extends the original integration-only functionality boundary. It authorizes cohesive identity/navigation, durable Saved Activities with explicit Resume/Start fresh choices, Tool-specific organization and archive recovery, separate Puzzle Solution Study, and verified offline-status details. These are deliberate functional changes, not visual cleanup. Individual implementation tickets delimit delivery; recording approval here does not claim every slice is implemented.
+
+The Landing Page remains an equally accessible four-Tool gallery, not a prescribed routine or activity dashboard; it may also expose the approved offline-status details. The single-origin decision, current Tool URLs, independent Tool frameworks, existing saved content, one Suite manifest, and one root service worker remain unchanged. No backend, account, framework rewrite, or automatic full puzzle-index download is introduced.

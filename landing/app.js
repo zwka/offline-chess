@@ -1,6 +1,6 @@
 const THEME_KEY = "offline-chess.theme.v1";
-const DARK_THEME_COLOR = "#172321";
-const LIGHT_THEME_COLOR = "#f4f0e7";
+const DARK_THEME_COLOR = "#191c1c";
+const LIGHT_THEME_COLOR = "#f5f0e6";
 
 const themeToggle = document.getElementById("theme-toggle");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
@@ -61,4 +61,3 @@ if ("serviceWorker" in navigator) {
     // Ignore service worker registration errors in unsupported contexts.
   });
 }
-
