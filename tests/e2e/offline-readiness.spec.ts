@@ -26,7 +26,7 @@ test("verified Tool readiness has accessible local-only details on every surface
   const details = page.getByRole("dialog", { name: "Offline readiness" });
   await expect(details).toBeVisible();
   await expect(details).toContainText("Online — connectivity is not offline readiness");
-  await expect(details).toContainText("Full puzzle database: not checked");
+  await expect(details).toContainText("Full puzzle database: unavailable");
   await expect(details).toContainText("browser can remove stored resources");
   await page.keyboard.press("Escape");
   await expect(control).toBeFocused();
