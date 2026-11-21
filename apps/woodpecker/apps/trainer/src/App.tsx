@@ -267,7 +267,8 @@ function App() {
           markDemoSeeded();
         }
         try {
-          const handoff = await consumePendingPuzzleSetHandoff(next);
+          // An explicit solution return must not consume another tab's unrelated Handoff.
+          const handoff = new URLSearchParams(location.search).has("solutionRun") ? null : await consumePendingPuzzleSetHandoff(next);
           if (handoff) {
             next = handoff.data;
             markDemoSeeded();

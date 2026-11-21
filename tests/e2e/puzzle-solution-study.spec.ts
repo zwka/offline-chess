@@ -122,6 +122,7 @@ test("completion after error unlocks study without recovering the first-try poin
   await page.locator('[data-square="a4"]').click();
   await expect(page.getByText("Good recovery.")).toBeVisible();
   await page.getByRole("button", { name: "Study solution", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
   const before = await runs(page);
   await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
   await expect(page.getByText("Good recovery.")).toBeVisible();
