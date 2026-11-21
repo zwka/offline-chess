@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    
+    <svg x="32" y="32" width="448" height="448" viewBox="0 0 64 64" color="#000">
+    <path d="M50 36v18H10V14h18M40 10h14v14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="miter"/>
+    <path d="M20 24h10v10H20zm14 0h10v10H34zM20 38h10v10H20zm14 0h10v10H34z" fill="currentColor"/>
+  </svg>
+  </svg>

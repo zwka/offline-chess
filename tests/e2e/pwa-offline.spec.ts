@@ -43,8 +43,8 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
       display: "standalone",
       start_url: "/",
       scope: "/",
-      background_color: "#172321",
-      theme_color: "#172321",
+      background_color: "#191c1c",
+      theme_color: "#191c1c",
     });
 
     expect(manifest.icons).toEqual([
@@ -360,6 +360,10 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
       "/icon-192.png",
       "/icon-512.png",
       "/icon-maskable-512.png",
+      "/identity/symbols.svg",
+      "/identity/identity.css",
+      "/identity/open-board.svg",
+      "/identity/open-board-mono.svg",
       "/icons/blind-chess.jpeg",
       "/icons/pgn-reader.jpeg",
       "/icons/woodpecker.jpeg",

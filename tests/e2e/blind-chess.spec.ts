@@ -78,7 +78,7 @@ test.describe("Blind Chess Tool (/blind-chess/)", () => {
     await page.goBack();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#172321");
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#191c1c");
     await expect(page.getByRole("button", { name: "Switch to light mode" })).toHaveAttribute("aria-pressed", "true");
   });
 

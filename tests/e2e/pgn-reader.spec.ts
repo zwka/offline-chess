@@ -58,7 +58,7 @@ test.describe("PGN Reader Tool (/pgn-reader/)", () => {
     // Navigate to Landing Page and verify light Theme is synced
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#f4f0e7");
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#f5f0e6");
 
     // Toggle back to dark on Landing Page and navigate into PGN Reader
     await page.getByRole("button", { name: "Switch to dark mode" }).click();
