@@ -83,6 +83,13 @@ for (const toolOutDir of [suiteGeneratorDistDir, suiteTrainerDistDir]) {
   await rm(join(toolOutDir, "sw.js"), { force: true });
 }
 
+// Shared status is assembled, not maintained in five independent Tool layouts.
+for (const surface of [distDir, suiteBlindChessDistDir, pgnReaderOutDir, suiteGeneratorDistDir, suiteTrainerDistDir]) {
+  const htmlPath = join(surface, "index.html");
+  const html = await readFile(htmlPath, "utf8");
+  await writeFile(htmlPath, html.replace("</head>", '<link rel="stylesheet" href="/offline-status.css"><script type="module" src="/offline-status.js"></script></head>'));
+}
+
 const EXCLUDED_PRECACHE_PATHS = new Set([
   "/sw.js",
   "/woodpecker-generator/puzzle-index.generated.jsonl.gz",
@@ -127,6 +134,24 @@ const precacheUrls = [...new Set([...directoryRoutes, ...distFiles])];
 const swSource = `const CACHE_PREFIX = "offline-chess-suite-";
 const CACHE = "offline-chess-suite-v1-${buildHash}";
 const PRECACHE_URLS = ${JSON.stringify(precacheUrls, null, 2)};
+let installFailures = 0;
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "suite:verify-tools" || !event.ports[0]) return;
+  event.waitUntil((async () => {
+    try {
+      const exists = (await caches.keys()).includes(CACHE);
+      const cache = exists ? await caches.open(CACHE) : null;
+      const missing = [];
+      for (const url of PRECACHE_URLS) {
+        const response = cache && await cache.match(url, { ignoreVary: true });
+        if (!response || !response.ok) missing.push(url);
+      }
+      event.ports[0].postMessage({ state: missing.length ? "incomplete" : "ready", missing, total: PRECACHE_URLS.length, installFailures, build: CACHE });
+    } catch {
+      event.ports[0].postMessage({ state: "failure" });
+    }
+  })());
+});
 const TOOL_SHELLS = [
   "/blind-chess/",
   "/pgn-reader/",
@@ -208,9 +233,11 @@ self.addEventListener("install", (event) => {
         const response = await fetch(url);
         if (response.ok) {
           await cache.put(url, response);
+        } else {
+          installFailures++;
         }
       } catch {
-        // Ignore transient install fetch failure in isolated test environments.
+        installFailures++;
       }
     }));
     await self.skipWaiting();
@@ -269,4 +296,3 @@ self.addEventListener("fetch", (event) => {
 `;
 
 await writeFile(join(distDir, "sw.js"), swSource, "utf8");
-
