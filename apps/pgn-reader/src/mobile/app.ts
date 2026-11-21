@@ -7,6 +7,8 @@ import {
   type MobileSourceRecord,
 } from "./library.js";
 import { renderMobileReader, type MobileReaderHandle } from "./reader.js";
+import { NormalStudyBookmark, type StudyBookmark } from "./study-bookmark.js";
+import { openSolutionStudy, solutionStudyLink } from "./solution-study.js";
 
 const importPanel = getElement<HTMLElement>("import-panel");
 const sourcePanel = getElement<HTMLElement>("source-panel");
@@ -14,6 +16,8 @@ const sourceList = getElement<HTMLElement>("source-list");
 const sourceListSummary = getElement<HTMLElement>("source-list-summary");
 const recordsPanel = getElement<HTMLElement>("records-panel");
 const readerPanel = getElement<HTMLElement>("reader-panel");
+const libraryHeading = getElement<HTMLElement>("library-heading");
+const returnStudy = getElement<HTMLButtonElement>("return-study");
 const sourceName = getElement<HTMLElement>("source-name");
 const sourceStatus = getElement<HTMLElement>("source-status");
 const sourceSize = getElement<HTMLElement>("source-size");
@@ -33,6 +37,8 @@ const previousPage = getElement<HTMLButtonElement>("previous-page");
 const nextPage = getElement<HTMLButtonElement>("next-page");
 const themeToggle = getElement<HTMLButtonElement>("theme-toggle");
 const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+const solutionLink = solutionStudyLink();
+if (solutionLink) libraryHeading.append(solutionLink);
 
 type Theme = "light" | "dark";
 const THEME_KEY = "offline-chess.theme.v1";
@@ -88,7 +94,68 @@ let offset = 0;
 let selectedGameId: number | null = null;
 let readerGeneration = 0;
 let activeReader: MobileReaderHandle | null = null;
-let observedActiveSourceId = library.activeSourceId;
+let studySourceId: number | null = null;
+const normalStudy = new NormalStudyBookmark();
+const studyNotice = h("section", { class: "meta-panel study-activity", "aria-label": "Saved study" });
+const studyMessage = h("p", { role: "status" });
+const resumeStudy = h("button", { type: "button", class: "reader-secondary-button" }, "Resume");
+const freshStudy = h("button", { type: "button", class: "reader-secondary-button" }, "Start fresh");
+studyNotice.append(studyMessage, resumeStudy, freshStudy);
+libraryHeading.after(studyNotice);
+resumeStudy.addEventListener("click", () => {
+  const bookmark = normalStudy.value;
+  if (!bookmark) return;
+  const source = library.sources.find((candidate) => candidate.id === bookmark.sourceId);
+  if (!source || source.name !== bookmark.sourceName || source.size !== bookmark.sourceSize) {
+    normalStudy.message = "The saved source is missing. Your other Library content is still available; choose a game to recover.";
+    renderStudyNotice();
+    return;
+  }
+  void library.selectSource(source.id).then(() => {
+    if (library.activeSourceId !== source.id) {
+      normalStudy.message = "Could not select the saved source. Your saved study is unchanged; Library remains available.";
+      renderStudyNotice();
+      return;
+    }
+    openGame(bookmark.gameId, bookmark);
+  });
+});
+freshStudy.addEventListener("click", () => {
+  if (!window.confirm("Replace your unfinished PGN study? Start fresh clears its saved place only. Imported PGNs and completed history are retained.")) return;
+  if (!normalStudy.save(null)) { renderStudyNotice(); return; }
+  closeReader();
+  getElement<HTMLElement>("library-title").focus();
+  renderStudyNotice();
+});
+function renderStudyNotice(): void {
+  const reading = !readerPanel.hidden;
+  studyMessage.textContent = normalStudy.message || (normalStudy.value ? "Unfinished PGN study. Resume your saved place or start fresh." : "");
+  resumeStudy.hidden = reading || !normalStudy.value || activeReader !== null;
+  freshStudy.hidden = reading || !normalStudy.value;
+  studyNotice.hidden = !studyMessage.textContent || (reading && normalStudy.message === "Study saved on this device.");
+}
+// Retry the current synchronous bookmark before Suite navigation. Merely visiting
+// an entry choice must not rewrite it; Puzzle Solution Study owns its own state.
+window.addEventListener("offline-chess:before-navigate", (event) => {
+  if (!activeReader || !normalStudy.value) return;
+  if (!normalStudy.save(normalStudy.value)) event.preventDefault();
+  renderStudyNotice();
+});
+void library.ready().then(() => {
+  if (normalStudy.legacy) {
+    const source = library.source;
+    if (source?.resumeBookmark) {
+      normalStudy.value = { version: 1, sourceId: source.id, gameId: source.resumeBookmark.gameId, sourceName: source.name, sourceSize: source.size };
+      normalStudy.message = "Older study bookmark: Resume opens the saved game at its start; an exact move was not stored.";
+    }
+  }
+  renderStudyNotice();
+});
+
+returnStudy.addEventListener("click", () => {
+  setReaderMode(true);
+  readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
+});
 
 sourceInput.addEventListener("change", () => {
   const file = sourceInput.files?.[0];
@@ -99,9 +166,7 @@ sourceInput.addEventListener("change", () => {
   searchInput.value = "";
   void library.replaceSource({ name: file.name, blob: file }).then(() => {
     if (library.replacement !== null) return;
-    if (library.activeSourceId !== previousActiveSourceId) {
-      closeReader();
-    } else if (library.error && selectedGameId !== null) {
+    if (library.activeSourceId === previousActiveSourceId && library.error && selectedGameId !== null) {
       showReaderError(`Could not import the source: ${library.error}`);
     }
   });
@@ -137,12 +202,10 @@ nextPage.addEventListener("click", () => {
 });
 
 library.subscribe(() => {
-  const activeSourceChanged = library.activeSourceId !== observedActiveSourceId;
-  observedActiveSourceId = library.activeSourceId;
   renderSourceList(library.sources);
   renderSource(library.source);
-  if (activeSourceChanged && selectedGameId !== null) closeReader();
-  if (selectedGameId === null && library.replacement === null) renderGames();
+  if (selectedGameId !== null && !library.sources.some((source) => source.id === studySourceId)) closeReader();
+  if (library.replacement === null) renderGames();
 });
 
 window.addEventListener("beforeunload", () => {
@@ -153,6 +216,8 @@ setReaderMode(false);
 renderSourceList(library.sources);
 renderSource(library.source);
 renderGames();
+
+if (new URLSearchParams(location.search).get("solution") === "1") void openSolutionStudy();
 
 function renderSourceList(sources: MobileSourceRecord[]): void {
   sourceListSummary.textContent = sources.length === 0
@@ -367,32 +432,63 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function openGame(gameId: number): void {
+function openGame(gameId: number, bookmark?: StudyBookmark): void {
+  if (activeReader && selectedGameId === gameId && studySourceId === library.activeSourceId) {
+    setReaderMode(true);
+    readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
+    return;
+  }
+  const saved = normalStudy.value;
+  if (!bookmark && saved) {
+    if (saved.sourceId === library.activeSourceId && saved.gameId === gameId) bookmark = saved;
+    else if (!window.confirm("Replace your unfinished PGN study with this game? Imported PGNs and completed history are retained.")) return;
+  }
   selectedGameId = gameId;
+  studySourceId = library.activeSourceId;
   const generation = ++readerGeneration;
   activeReader?.cleanup();
   activeReader = null;
+  returnStudy.hidden = true;
   setReaderMode(true);
   readerPanel.replaceChildren(
     loading("Opening Game record..."),
   );
 
-  void loadGame(gameId, generation);
+  void loadGame(gameId, generation, bookmark);
 }
 
-async function loadGame(gameId: number, generation: number): Promise<void> {
+async function loadGame(gameId: number, generation: number, bookmark?: StudyBookmark): Promise<void> {
   try {
     const document = await library.getGameDocument(gameId);
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(document.source))), (byte) => byte.toString(16).padStart(2, "0")).join("");
     if (generation !== readerGeneration || selectedGameId !== gameId) return;
+    let recovery = bookmark && !bookmark.position ? "Older bookmark restored at the start of the game; no exact move was stored." : "";
+    if (bookmark?.digest && bookmark.digest !== digest) recovery = "The saved game content changed. Opened at its start instead.";
+    const source = library.sources.find((candidate) => candidate.id === document.fileId)!;
     const reader = await renderMobileReader(readerPanel, document, {
-      onBack: closeReader,
-      onNavigate: openGame,
+      initialPosition: bookmark?.digest && bookmark.digest !== digest ? undefined : bookmark?.position,
+      onRecovery: (message) => { recovery = message; },
+      onPositionChange: (position) => {
+        if (generation !== readerGeneration) return;
+        normalStudy.save({ version: 1, sourceId: document.fileId, gameId: document.gameId, sourceName: source.name, sourceSize: source.size, digest, position });
+        if (recovery) normalStudy.message = `${recovery} ${normalStudy.message}`;
+        recovery = "";
+        renderStudyNotice();
+      },
+      onBack: browseLibrary,
+      onNavigate: (nextId) => {
+        if (studySourceId === null) return;
+        void library.selectSource(studySourceId).then(() => openGame(nextId));
+      },
     });
     if (generation !== readerGeneration || selectedGameId !== gameId) {
       reader.cleanup();
       return;
     }
     activeReader = reader;
+    renderStudyNotice();
+    returnStudy.hidden = false;
+    if (!readerPanel.hidden) readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
     await library.rememberGame(document.fileId, document.gameId);
     if (generation !== readerGeneration || selectedGameId !== gameId) {
       reader.cleanup();
@@ -401,12 +497,14 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
   } catch (error) {
     if (generation !== readerGeneration || selectedGameId !== gameId) return;
     const message = error instanceof Error ? error.message : String(error);
+    normalStudy.message = `Could not resume the saved game: ${message}. Your Library is still available; choose a game to recover.`;
+    renderStudyNotice();
     readerPanel.replaceChildren(
       h("div", { class: "reader-error", role: "alert" }, `Could not open Game record: ${message}`),
       h(
         "button",
         { class: "reader-back", type: "button" },
-        "Back to Game records",
+        "Back to Library",
       ),
     );
     readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.addEventListener("click", closeReader);
@@ -415,11 +513,20 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
 
 function closeReader(): void {
   selectedGameId = null;
+  studySourceId = null;
+  returnStudy.hidden = true;
   readerGeneration += 1;
   activeReader?.cleanup();
   activeReader = null;
+  renderStudyNotice();
   setReaderMode(false);
   renderGames();
+}
+
+function browseLibrary(): void {
+  setReaderMode(false);
+  renderGames();
+  getElement<HTMLElement>("library-title").focus();
 }
 
 function resetListView(): void {
@@ -435,7 +542,8 @@ function continueSource(sourceId: number, gameId: number): void {
     const source = library.sources.find((candidate) => candidate.id === sourceId);
     const bookmark = source?.resumeBookmark;
     if (library.activeSourceId !== sourceId || !bookmark || bookmark.gameId !== gameId) return;
-    openGame(bookmark.gameId);
+    const exact = normalStudy.value;
+    openGame(bookmark.gameId, exact?.sourceId === sourceId && exact.gameId === gameId ? exact : undefined);
   });
 }
 
@@ -445,10 +553,13 @@ function showReaderError(message: string): void {
 }
 
 function setReaderMode(readerOpen: boolean): void {
+  libraryHeading.hidden = readerOpen;
+  document.getElementById("app")?.classList.toggle("study-open", readerOpen);
   importPanel.hidden = readerOpen;
   sourcePanel.hidden = readerOpen;
   recordsPanel.hidden = readerOpen;
   readerPanel.hidden = !readerOpen;
+  renderStudyNotice();
 }
 
 function loading(message: string): HTMLElement {

@@ -7,6 +7,15 @@ export async function loadPuzzleIndex(
   fetcher: typeof fetch = fetch,
   baseUrl: string = BASE_URL,
 ): Promise<{ manifest: PuzzleIndexManifest; index: string }> {
+  return discoverPuzzleIndex(fetcher, baseUrl, true);
+}
+
+/** Entry/discovery reads small metadata only. HEAD can warm the full body in the worker. */
+export async function discoverPuzzleIndex(
+  fetcher: typeof fetch = fetch,
+  baseUrl: string = BASE_URL,
+  probeIndex = false,
+): Promise<{ manifest: PuzzleIndexManifest; index: string }> {
   const prefix = baseUrl.replace(/\/?$/, "/");
   const candidates = [
     { manifest: `${prefix}puzzle-index.generated-manifest.json`, index: `${prefix}puzzle-index.generated.jsonl.gz` },
@@ -15,9 +24,10 @@ export async function loadPuzzleIndex(
   for (const candidate of candidates) {
     const response = await fetcher(candidate.manifest);
     if (!response.ok) continue;
+    if (!probeIndex) return { manifest: puzzleIndexManifestSchema.parse(await response.json()), index: candidate.index };
     const indexResponse = await fetcher(candidate.index, { method: "HEAD" });
     if (indexResponse.ok) return { manifest: puzzleIndexManifestSchema.parse(await response.json()), index: candidate.index };
-    if (candidate.manifest.includes("generated")) throw new Error("The full local index is not available offline yet. Open Generator online once to warm its cache.");
+    if (candidate.manifest.includes("generated")) throw new Error("The full local index is not available offline yet. Generate online once to warm its cache.");
   }
   throw new Error("Puzzle index manifest could not be loaded");
 }

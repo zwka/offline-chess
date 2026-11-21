@@ -1,0 +1,23 @@
+/* Shared Ink & Brass vocabulary. Opt in without changing a Tool's framework. */
+:root {
+  --suite-serif: Iowan Old Style, Palatino Linotype, Book Antiqua, Georgia, serif;
+  --suite-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --suite-bg: #f5f0e6;
+  --suite-surface: #fffaf0;
+  --suite-ink: #27251f;
+  --suite-muted: #605749;
+  --suite-brass: #76521e;
+  --suite-brass-surface: #e6d2aa;
+  --suite-line: #c6ad80;
+  --suite-focus: #805411;
+}
+:root[data-theme="dark"] {
+  --suite-bg: #191c1c;
+  --suite-surface: #232727;
+  --suite-ink: #f3ecde;
+  --suite-muted: #bdb5a6;
+  --suite-brass: #e1bc78;
+  --suite-brass-surface: #393124;
+  --suite-line: #786345;
+  --suite-focus: #f4cf8f;
+}

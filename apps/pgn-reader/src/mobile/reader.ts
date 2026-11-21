@@ -1,10 +1,14 @@
 import type { GameDocument, TagPair } from "../wire.js";
 import { createBoard, renderBoard } from "./reader-board.js";
 import { buildNotation, revealToken, type MobileNotation } from "./reader-notation.js";
+import type { StudyPosition } from "./study-bookmark.js";
 
 export type MobileReaderOptions = {
   onBack: () => void;
   onNavigate: (gameId: number) => void;
+  initialPosition?: StudyPosition;
+  onPositionChange?: (position: StudyPosition) => void;
+  onRecovery?: (message: string) => void;
 };
 
 export type MobileReaderHandle = {
@@ -33,6 +37,18 @@ export async function renderMobileReader(
   const title = gameTitle(doc.headers);
   let notation: MobileNotation | null = null;
   let currentId = doc.rootId;
+  if (options.initialPosition) {
+    let node = doc.nodes[doc.rootId];
+    let found = true;
+    for (const index of options.initialPosition.path) {
+      const next = doc.nodes[node.children[index]];
+      if (!next) { found = false; break; }
+      node = next;
+    }
+    if (found && node.fen === options.initialPosition.fen) currentId = node.id;
+    else options.onRecovery?.("The saved move or variation is missing. Opened this game at its start instead.");
+    board.flipped = options.initialPosition.flipped;
+  }
   const previousGame = navigationButton(
     "Previous game",
     "previous-game",
@@ -79,12 +95,12 @@ export async function renderMobileReader(
     h(
       "button",
       { class: "reader-back", type: "button" },
-      "Back to Game records",
+      "Back to Library",
     ),
     h(
       "div",
       { class: "reader-heading" },
-      h("p", { class: "kicker" }, "Reader"),
+      h("p", { class: "kicker" }, "PGN Reader · Study"),
       h("h1", { class: "reader-title" }, title),
       h(
         "div",
@@ -124,14 +140,26 @@ export async function renderMobileReader(
         "section",
         { class: "board-column" },
         h("div", { class: "board-wrap" }, boardHost, boardControls, caption),
-        metadata,
-        warningPanel,
-        h("div", { class: "pgn-drawer raw-source-drawer" }, rawButton, source),
       ),
       h(
         "section",
         { class: "notation-column", "aria-label": "Game notation" },
         notationPane,
+      ),
+      h(
+        "section",
+        { class: "study-details", "aria-label": "Game details" },
+        metadata,
+        warningPanel,
+        h("div", { class: "pgn-drawer raw-source-drawer" }, rawButton, source),
+        h(
+          "p",
+          { class: "piece-credit" },
+          "Chess pieces by ",
+          h("a", { href: "https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard_transparent" }, "Cburnett, Wikimedia Commons"),
+          " · ",
+          h("a", { href: "https://creativecommons.org/licenses/by-sa/3.0/" }, "CC BY-SA 3.0"),
+        ),
       ),
     ),
   );
@@ -141,6 +169,7 @@ export async function renderMobileReader(
   selectNode(currentId);
 
   const onKey = (event: KeyboardEvent): void => {
+    if (panel.hidden) return;
     const target = event.target as HTMLElement | null;
     if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "BUTTON") return;
     const actions: Record<string, () => void> = {
@@ -185,6 +214,18 @@ export async function renderMobileReader(
     caption.textContent = node.san
       ? `${node.color === "w" ? `${node.moveNumber}.` : `${node.moveNumber}…`} ${node.san}${node.glyphs.join("")} - ply ${node.ply}`
       : "start position";
+    savePosition();
+  }
+
+  function savePosition(): void {
+    const path: number[] = [];
+    let node = doc.nodes[currentId];
+    while (node.parentId !== null) {
+      const parent = doc.nodes[node.parentId];
+      path.unshift(parent.children.indexOf(node.id));
+      node = parent;
+    }
+    options.onPositionChange?.({ path, fen: doc.nodes[currentId].fen, flipped: board.flipped });
   }
 
   function stepForward(): void {
@@ -216,6 +257,7 @@ export async function renderMobileReader(
     board.flipped = !board.flipped;
     const node = doc.nodes[currentId];
     renderBoard(board, node.fen, node.uci, node);
+    savePosition();
   }
 }
 

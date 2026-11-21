@@ -139,6 +139,8 @@ export function revealPuzzleSolution(run: ActiveRun, timestamp = nowIso()): Acti
     throw new Error("A solution can only be revealed for an unfinished Puzzle Result");
   }
 
+  nextResult = { ...nextResult, solutionRevealed: true };
+
   return {
     ...run,
     currentPuzzle: {

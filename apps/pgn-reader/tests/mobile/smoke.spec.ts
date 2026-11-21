@@ -45,7 +45,7 @@ test("loads as a standalone static mobile client and imports one source", async 
   await expect(page).toHaveTitle("PGN Reader Mobile");
   await expect(page.locator("#source-status")).toHaveText("idle");
   await expect(page.locator("#import-panel .panel-note")).toHaveText(
-    "Retain multiple local sources in your Mobile Library.",
+    "Add a local file. Existing sources stay in your Library.",
   );
 
   await page.locator("#source-input").setInputFiles({
@@ -109,7 +109,7 @@ test("restores the persisted Mobile Library after reload and clears it", async (
   await page.getByRole("button", { name: "Raw PGN source" }).click();
   await expect(page.locator(".raw-source")).toContainText('[Event "Persistent mobile source"]');
 
-  await page.getByRole("button", { name: "Back to Game records" }).click();
+  await page.getByRole("button", { name: "Back to Library" }).click();
   await page.locator("#clear-source").click();
   await expect(page.locator("#source-status")).toHaveText("idle");
   await expect(page.locator("#source-name")).toHaveText("No PGN source selected");
@@ -145,7 +145,7 @@ test("creates per-source Resume bookmarks, continues from the root, and removes 
   await expect(page.locator(".reader-title")).toContainText("White Two");
   await page.locator('[data-action="forward"]').click();
   await expect(page.locator(".notation-body .mv.current")).toContainText("d4");
-  await page.getByRole("button", { name: "Back to Game records" }).click();
+  await page.getByRole("button", { name: "Back to Library" }).click();
 
   const firstItem = page.locator("#source-list .source-item").filter({ hasText: "resume-first.pgn" });
   await expect(firstItem.getByRole("button", { name: "Continue" })).toBeVisible();
@@ -160,7 +160,7 @@ test("creates per-source Resume bookmarks, continues from the root, and removes 
   await expect(secondItem.locator(".source-continue")).toHaveCount(0);
   await page.locator("#record-list .game-record").click();
   await expect(page.locator(".reader-title")).toContainText("Second");
-  await page.getByRole("button", { name: "Back to Game records" }).click();
+  await page.getByRole("button", { name: "Back to Library" }).click();
   await expect(secondItem.getByRole("button", { name: "Continue" })).toBeVisible();
 
   await page.getByRole("button", { name: "Select resume-first.pgn" }).click();
@@ -174,7 +174,7 @@ test("creates per-source Resume bookmarks, continues from the root, and removes 
   await expect(page.locator(".notation-body .mv.current")).toHaveCount(0);
   await expect(page.locator('.board .sq[data-square="e2"] .piece')).toHaveAttribute("alt", "P");
 
-  await page.getByRole("button", { name: "Back to Game records" }).click();
+  await page.getByRole("button", { name: "Back to Library" }).click();
   await page.getByRole("button", { name: "Remove resume-first.pgn" }).click();
   await expect(page.locator("#source-status")).toHaveText("idle");
   await expect(page.getByRole("button", { name: "Remove resume-first.pgn" })).toHaveCount(0);

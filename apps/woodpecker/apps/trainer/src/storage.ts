@@ -14,11 +14,9 @@ import {
   type TrainerBackup,
 } from "@offline-woodpecker/domain";
 import { validatePuzzleSet } from "./puzzle-session";
+import { TRAINER_STORAGE } from "../../../../../shared/solution-study.js";
 
-const DATABASE_NAME = "offline-woodpecker-trainer";
-const DATABASE_VERSION = 1;
-const SETS_STORE = "puzzle-sets";
-const RUNS_STORE = "runs";
+const { name: DATABASE_NAME, version: DATABASE_VERSION, sets: SETS_STORE, runs: RUNS_STORE } = TRAINER_STORAGE;
 
 export type StoredPuzzleSet = {
   set: PuzzleSet;

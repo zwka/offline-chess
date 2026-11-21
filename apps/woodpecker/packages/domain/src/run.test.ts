@@ -62,6 +62,24 @@ const set: PuzzleSet = {
 };
 
 describe("Run state", () => {
+  it("preserves known legacy revelation through advance and backup without guessing skipped failures", () => {
+    const revealed = revealPuzzleSolution(createRun(set));
+    const legacy = { ...revealed, results: revealed.results.map(result => {
+      if (result.status !== "failed") return result;
+      const { solutionRevealed: _known, ...older } = result;
+      return older;
+    }) };
+    const restored = parseRun(legacy);
+    expect(restored.results[0]).toMatchObject({ solutionRevealed: true });
+    if (restored.status !== "active") throw new Error("Expected active Run");
+    const advanced = nextAfterPuzzle(restored);
+    expect(parseRun(advanced).results[0]).toMatchObject({ status: "failed", completion: "skipped", solutionRevealed: true });
+    const backup = parseTrainerBackup({ kind: "trainer-backup", schemaVersion: 2, exportedAt: "2026-01-01T00:01:00.000Z", puzzleSets: [], runs: [advanced] });
+    expect(backup.runs[0].results[0]).toMatchObject({ solutionRevealed: true });
+    const skipped = nextAfterPuzzle(markPuzzleError(createRun(set), "incorrect"));
+    expect(parseRun(skipped).results[0]).not.toHaveProperty("solutionRevealed");
+    expect(scoreRun(advanced)).toEqual({ firstTrySolved: 0, total: 2, percentage: 0, eventuallyCompleted: 0, notCompleted: 1 });
+  });
   it("starts tracking new Runs while keeping active time unknown on older Runs", () => {
     const created = createRun(set, "2026-01-01T00:00:00.000Z");
     const { activeTimeMs: _activeTimeMs, ...olderRun } = created;
