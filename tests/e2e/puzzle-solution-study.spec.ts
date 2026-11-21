@@ -65,6 +65,7 @@ test("revealed Puzzle remains studyable from history after Next, reload and exac
   await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
   await page.getByRole("button", { name: "Resume solving", exact: true }).click();
   await page.getByRole("button", { name: "Next puzzle", exact: true }).click();
+  await expect(page.getByText("0008Q", { exact: true })).toBeVisible();
   // The context saved before Next is still independently verified by Reader.
   await page.goto("/pgn-reader/?solution=1");
   await expect(page.locator(".move-caption")).toHaveText("start position");
@@ -93,6 +94,7 @@ test("legacy current revelation remains verifiable and survives its first advanc
   await page.getByRole("button", { name: "Start new Run" }).click();
   await page.getByRole("button", { name: "Show solution" }).click();
   await page.getByRole("button", { name: "Study solution", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
   // Existing schema-v2 installations did not store this additive metadata.
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
     const request = indexedDB.open("offline-woodpecker-trainer", 1);
@@ -119,6 +121,7 @@ test("legacy current revelation remains verifiable and survives its first advanc
   await page.getByRole("button", { name: "History", exact: true }).click();
   await page.locator(".history-row").first().click();
   await page.getByRole("button", { name: "Study solution · Puzzle 1", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
   await page.reload();
   await expect(page.locator(".move-caption")).toHaveText("start position");
 });
