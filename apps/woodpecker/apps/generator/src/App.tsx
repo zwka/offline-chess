@@ -26,7 +26,7 @@ import {
   type PuzzleSetSelection,
   type ThemeChoice,
 } from "@offline-woodpecker/domain";
-import { loadPuzzleIndex } from "./load-puzzle-index";
+import { discoverPuzzleIndex, loadPuzzleIndex } from "./load-puzzle-index";
 import { useSavedGeneratorActivity } from "./saved-activity";
 
 const FALLBACK_THEMES = ["advantage", "crushing", "endgame", "fork", "mate", "middlegame", "short"];
@@ -99,7 +99,6 @@ function ThemeControl({ theme, onToggle }: { theme: ThemeChoice; onToggle: () =>
 function App() {
   const theme = useTheme();
   const [manifest, setManifest] = useState<PuzzleIndexManifest | null>(null);
-  const [indexPath, setIndexPath] = useState(`${import.meta.env.BASE_URL}puzzle-index.jsonl`);
   const [manifestError, setManifestError] = useState<string | null>(null);
   const savedActivity = useSavedGeneratorActivity();
   const { activity, setActivity } = savedActivity;
@@ -136,11 +135,10 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    loadPuzzleIndex()
-      .then(({ manifest: nextManifest, index }) => {
+    discoverPuzzleIndex()
+      .then(({ manifest: nextManifest }) => {
         if (cancelled) return;
         setManifest(nextManifest);
-        setIndexPath(index);
         setManifestError(null);
       })
       .catch((error: unknown) => {
@@ -242,6 +240,8 @@ function App() {
     setNotice({ kind: "info", text: "Scanning the local puzzle index..." });
 
     try {
+      // Only this deliberate generation action may probe/warm the optional full index.
+      const { manifest: selectedManifest, index: indexPath } = await loadPuzzleIndex();
       const response = await fetch(indexPath);
       if (!response.ok) throw new Error("The local puzzle index could not be opened");
       const result = await selectPuzzlesFromStream(parsePuzzleJsonl(response, indexPath.endsWith(".gz")), selection, setProgress);
@@ -255,7 +255,7 @@ function App() {
 
       const nextSet = await createPuzzleSet({
         name: setName,
-        source: manifest.source,
+        source: selectedManifest.source,
         selection,
         puzzles: result.puzzles,
       });
