@@ -672,3 +672,11 @@ button, .theme-toggle, .var-toggle { min-height: 44px; }
   .reader-heading { grid-column: 1 / -1; grid-row: 2; }
   .reader-header .game-nav { grid-row: 3; }
 }
+/* Solution playback owns its context; ordinary Library/Study remains untouched. */
+.solution-open > :not(.solution-study-panel):not(.solution-study-controls) { display: none !important; }
+.solution-study-panel { min-width: 0; }
+.solution-study-controls { padding: 16px; margin-bottom: 16px; }
+.solution-study-controls h1 { margin: 0; }
+.solution-open > .meta-panel a { color: var(--ink); display: inline-flex; align-items: center; min-height: 44px; padding: .6rem 0; }
+.solution-study-panel .game-nav,
+.solution-study-panel .reader-summary > span:nth-child(2) { display: none; }
