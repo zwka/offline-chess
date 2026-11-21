@@ -9,7 +9,10 @@ import {
 } from "@offline-woodpecker/domain";
 import {
   consumePendingPuzzleSetHandoff,
+  deleteSetAndRuns,
+  exportTrainerBackup,
   loadTrainerData,
+  mergeTrainerBackup,
   saveActiveRunTime,
   savePuzzleSet,
   saveRun,
@@ -187,7 +190,7 @@ const samplePuzzles: Puzzle[] = [
   },
 ];
 
-async function buildSampleSet(overrides: { id?: string; name?: string } = {}): Promise<PuzzleSet> {
+async function buildSampleSet(overrides: { id?: string; name?: string; seed?: string } = {}): Promise<PuzzleSet> {
   return createPuzzleSet({
     id: overrides.id ?? "handoff-set-1",
     name: overrides.name ?? "Tactical Sprint",
@@ -204,7 +207,7 @@ async function buildSampleSet(overrides: { id?: string; name?: string } = {}): P
       themes: ["short"],
       themeMatch: "all",
       count: 2,
-      seed: "woodpecker-2026",
+      seed: overrides.seed ?? "woodpecker-2026",
     },
     puzzles: samplePuzzles,
   });
@@ -260,6 +263,50 @@ describe("Trainer Puzzle Set Handoff consumption", () => {
 
     const persisted = await loadTrainerData();
     expect(persisted.runs.find((run) => run.id === started.run.id)).toMatchObject({ status: "abandoned", activeTimeMs: 4_321 });
+  });
+
+  it("restores archived sets idempotently without changing identity, Runs, or backup compatibility", async () => {
+    const set = await buildSampleSet();
+    const neverPlayed = await buildSampleSet({ id: "never-played", name: "Never played", seed: "never-played" });
+    await savePuzzleSet(set);
+    await savePuzzleSet(neverPlayed, true);
+    const first = await startRunAtomically(set);
+    const advanced = completePuzzle(first.run);
+    if (advanced.status !== "active") throw new Error("Expected Puzzle 2");
+    const completed = completePuzzle(advanced);
+    await saveRun(completed);
+    const second = await startRunAtomically(set);
+    await saveActiveRunTime(second.run.id, 12345);
+    await startRunAtomically(set); // retains the second Run as abandoned
+    await setArchived(set.id, true);
+    const before = await loadTrainerData();
+    expect(before.sets.every((record) => record.archived)).toBe(true);
+    expect(before.runs.map((run) => run.status)).toEqual(["completed", "abandoned", "active"]);
+
+    await setArchived(set.id, false);
+    await setArchived(set.id, false);
+    await setArchived(neverPlayed.id, false);
+    const restored = await loadTrainerData();
+    expect(restored.sets).toEqual([{ set, archived: false }, { set: neverPlayed, archived: false }]);
+    expect(restored.runs).toEqual(before.runs);
+
+    const backup = await exportTrainerBackup(restored);
+    await deleteSetAndRuns(set.id);
+    await deleteSetAndRuns(neverPlayed.id);
+    expect(await loadTrainerData()).toEqual({ sets: [], runs: [] });
+    await mergeTrainerBackup(backup, await loadTrainerData());
+    const reimported = await loadTrainerData();
+    expect(reimported.sets).toEqual(restored.sets);
+    expect(reimported.runs).toEqual(before.runs);
+  });
+
+  it("rejects restoring a missing set without recreating it or changing saved Runs", async () => {
+    const set = await buildSampleSet();
+    await savePuzzleSet(set, true);
+    await startRunAtomically(set);
+    const before = await loadTrainerData();
+    await expect(setArchived("missing-set", false)).rejects.toThrow("Puzzle Set not found");
+    expect(await loadTrainerData()).toEqual(before);
   });
 
   it("resumes an existing active Run at its current puzzle without duplicating the Puzzle Set or abandoning the Run when handed off again", async () => {

@@ -64,7 +64,7 @@ import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePositio
 import { formatActiveTime } from "./run-format";
 import { useActiveRunTimer } from "./use-active-run-timer";
 
-type View = "library" | "solve" | "summary" | "history";
+type View = "library" | "archive" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
 const GENERATOR_URL = import.meta.env.VITE_GENERATOR_URL ?? "/woodpecker-generator/";
 const MOVE_ANIMATION_DURATION_MS = 250;
@@ -157,6 +157,8 @@ function SetCard({
   onStart,
   onResume,
   onArchive,
+  onRestore,
+  isUpdating,
   onDelete,
 }: {
   record: StoredPuzzleSet;
@@ -165,6 +167,8 @@ function SetCard({
   onStart: () => void;
   onResume: () => void;
   onArchive: () => void;
+  onRestore: () => void;
+  isUpdating: boolean;
   onDelete: () => void;
 }) {
   const score = latestRun ? scoreRun(latestRun) : null;
@@ -173,27 +177,29 @@ function SetCard({
     <article className="set-card">
       <div className="set-card-topline">
         <span className="set-kicker">{record.set.selection.ratingMin}-{record.set.selection.ratingMax} rating</span>
-        <button className="icon-button" type="button" onClick={onArchive} title="Archive set" aria-label={`Archive ${record.set.name}`}><Archive size={16} /></button>
+        {!record.archived && <button className="icon-button" type="button" onClick={onArchive} disabled={isUpdating} title="Archive set" aria-label={`Archive ${record.set.name}`}><Archive size={16} /></button>}
       </div>
       <h3>{record.set.name}</h3>
       <p className="set-description">{record.set.puzzles.length} puzzles / {record.set.selection.themes.length ? record.set.selection.themes.map(formatTheme).join(", ") : "mixed themes"}</p>
       <div className="set-stats">
         <div><span>Source</span><strong>{record.set.source.snapshot}</strong></div>
-        <div><span>Runs</span><strong>{latestRun ? "History" : "New"}</strong></div>
+        <div><span>Runs</span><strong>{latestRun ? "History" : record.archived ? "Never played" : "New"}</strong></div>
         <div><span>Score</span><strong>{score ? `${score.firstTrySolved}/${score.total}` : "-"}</strong></div>
       </div>
       {activeRun && activeScore && (
         <div className="active-run-line"><span className="pulse-dot" /> Active / {activeRun.currentPuzzleIndex + 1} of {activeRun.results.length} / {activeScore.firstTrySolved} scored</div>
       )}
       <div className="set-card-actions">
-        {activeRun ? (
+        {record.archived ? (
+          <button className="primary-button compact" type="button" onClick={onRestore} disabled={isUpdating} aria-label={`Restore ${record.set.name}`}><RotateCcw size={15} /> Restore</button>
+        ) : activeRun ? (
           <button className="primary-button compact" type="button" onClick={onResume}><Play size={15} /> Resume</button>
         ) : (
           <button className="primary-button compact" type="button" onClick={onStart}><Play size={15} /> Start new Run</button>
         )}
         {latestRun && <span className="last-run">Last run {formatDate(latestRun.startedAt)}</span>}
       </div>
-      <button className="danger-link" type="button" onClick={onDelete}><Trash2 size={13} /> Delete set and history</button>
+      <button className="danger-link" type="button" onClick={onDelete} disabled={isUpdating}><Trash2 size={13} /> Delete set and history</button>
     </article>
   );
 }
@@ -215,6 +221,7 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [startingSetId, setStartingSetId] = useState<string | null>(null);
+  const [updatingSetId, setUpdatingSetId] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string; piece: string } | null>(null);
   const [boardPlayback, setBoardPlayback] = useState<BoardPlayback | null>(null);
@@ -383,9 +390,26 @@ function App() {
       setNotice("Finish or replace the active Run before archiving this set.");
       return;
     }
-    await setArchived(setId, true);
-    setData((current) => current ? { ...current, sets: current.sets.map((record) => record.set.id === setId ? { ...record, archived: true } : record) } : current);
-    setNotice("Puzzle Set archived. Its Run history is still available in History.");
+    await updateArchive(setId, true);
+  }
+
+  async function updateArchive(setId: string, archived: boolean) {
+    if (updatingSetId) return;
+    setUpdatingSetId(setId);
+    setNotice(null);
+    try {
+      await setArchived(setId, archived);
+      setData((current) => current ? { ...current, sets: current.sets.map((record) => record.set.id === setId ? { ...record, archived } : record) } : current);
+      setNotice(archived
+        ? "Puzzle Set archived. Restore it from Archived Puzzle Sets; its Run history is still available in History."
+        : "Puzzle Set restored to the Library. Its Runs and scores are unchanged.");
+    } catch {
+      setNotice(archived
+        ? "The Puzzle Set could not be archived locally. Please try again."
+        : "The Puzzle Set could not be restored locally. It remains archived. Please try again.");
+    } finally {
+      setUpdatingSetId(null);
+    }
   }
 
   async function removeSet(setId: string) {
@@ -508,20 +532,23 @@ function App() {
   const activeRunForSet = (setId: string): ActiveRun | undefined => data?.runs.find((run): run is ActiveRun => run.setId === setId && run.status === "active");
 
   function renderLibrary() {
+    const archived = view === "archive";
+    const sets = archived ? data?.sets.filter((record) => record.archived) ?? [] : visibleSets;
     return (
       <main className="trainer-main">
         <section className="trainer-intro">
           <div>
             <p className="eyebrow">Training library</p>
-            <h1>Keep the first move honest.</h1>
-            <p className="intro-copy">Choose a Puzzle Set, solve each position without a safety net, and let the history show what held up under pressure.</p>
+            <h1>{archived ? "Archived Puzzle Sets" : "Keep the first move honest."}</h1>
+            <p className="intro-copy">{archived ? "Restore a Puzzle Set to the Library with all its Runs and scores intact. Archiving is not deletion." : "Choose a Puzzle Set, solve each position without a safety net, and let the history show what held up under pressure."}</p>
           </div>
-          <div className="intro-stat"><span className="stat-number">{visibleSets.length}</span><span className="stat-label">active sets</span></div>
+          <div className="intro-stat"><span className="stat-number">{sets.length}</span><span className="stat-label">{archived ? "archived sets" : "active sets"}</span></div>
         </section>
 
         <section className="library-toolbar">
-          <div><h2>Your Puzzle Sets</h2><span className="toolbar-note">Stored on this device</span></div>
+          <div><h2>{archived ? "Restore to your Library" : "Your Puzzle Sets"}</h2><span className="toolbar-note">Stored on this device</span></div>
           <div className="toolbar-actions">
+            <button className="secondary-button" type="button" onClick={() => setView(archived ? "library" : "archive")}><Archive size={16} />{archived ? "Back to Library" : "Archived Puzzle Sets"}</button>
             <button className="secondary-button" type="button" onClick={() => backupInputRef.current?.click()}><DatabaseBackup size={16} /> Restore backup</button>
             <button className="secondary-button" type="button" onClick={() => void exportBackup()}><Download size={16} /> Export backup</button>
             <button className="primary-button compact" type="button" onClick={() => setInputRef.current?.click()}><Upload size={16} /> Import set</button>
@@ -530,11 +557,11 @@ function App() {
           </div>
         </section>
 
-        {visibleSets.length === 0 ? (
-          <div className="empty-library"><FileUp size={23} /><h3>Import your first Puzzle Set</h3><p>Use the Generator export or restore a Trainer backup to begin.</p></div>
+        {sets.length === 0 ? (
+          <div className="empty-library"><FileUp size={23} /><h3>{archived ? "No Archived Puzzle Sets" : "Import your first Puzzle Set"}</h3><p>{archived ? "Archived sets will appear here, even if you have never played them. Their Runs and scores stay saved until you explicitly delete the set and history." : "Use the Generator export or restore a Trainer backup to begin."}</p></div>
         ) : (
           <div className="set-grid">
-            {visibleSets.map((record) => (
+            {sets.map((record) => (
               <SetCard
                 key={record.set.id}
                 record={record}
@@ -543,6 +570,8 @@ function App() {
                 onStart={() => void startRun(record.set)}
                 onResume={() => { const run = activeRunForSet(record.set.id); if (run) resumeRun(run); }}
                 onArchive={() => void archiveSet(record.set.id)}
+                onRestore={() => void updateArchive(record.set.id, false)}
+                isUpdating={updatingSetId !== null}
                 onDelete={() => void removeSet(record.set.id)}
               />
             ))}
@@ -706,7 +735,7 @@ function App() {
         <div className="topbar-actions"><a className="quiet-link" href={GENERATOR_URL}>Generator →</a><ThemeControl theme={theme.theme} onToggle={theme.toggleTheme} /></div>
       </header>
       {notice && <button className="global-notice" type="button" onClick={() => setNotice(null)}>{notice}<span aria-hidden="true">x</span></button>}
-      {!data ? <main className="loading-screen"><RefreshCw className="spin" size={22} /><span>Opening local Trainer storage...</span></main> : view === "library" ? renderLibrary() : view === "solve" ? renderSolve() : view === "summary" ? renderSummary() : renderHistory()}
+      {!data ? <main className="loading-screen"><RefreshCw className="spin" size={22} /><span>Opening local Trainer storage...</span></main> : view === "library" || view === "archive" ? renderLibrary() : view === "solve" ? renderSolve() : view === "summary" ? renderSummary() : renderHistory()}
       <footer className="app-footer"><span>Woodpecker / local-first chess practice</span><span>Pieces: Cburnett, CC BY-SA 3.0 / <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard_transparent" target="_blank" rel="noreferrer">source notice</a></span></footer>
     </div>
   );
