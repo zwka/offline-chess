@@ -6,6 +6,13 @@ scan the source index or start a Handoff; Do Puzzles remains an explicit request
 to Trainer, using its existing content-hash deduplication, unarchiving and active
 Run reuse.
 
+Opening Generator, its Saved Activity choice, Resume, or the Suite switcher reads
+only index manifests for discovery. It does not HEAD or GET the optional full
+index. Generate is the explicit action that selects/probes the index and may
+warm it through the existing HEAD-to-GET service-worker path. Generated-index
+preference, sample fallback, streaming selection, and HEAD size headers remain
+unchanged.
+
 ## Storage boundary
 
 `localStorage["offline-chess.generator.activity.v1"]` holds a JSON object with

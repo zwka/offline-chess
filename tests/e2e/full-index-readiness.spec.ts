@@ -8,6 +8,54 @@ const indexPath = "/woodpecker-generator/puzzle-index.generated.jsonl.gz";
 const manifestPath = "/woodpecker-generator/puzzle-index.generated-manifest.json";
 const descriptor = { manifest, bytes: index.length };
 
+test("Generator entry, Saved Activity choice and switcher never warm the full index; Generate does", async ({ page, context }) => {
+  const fixture = `
+    const networkFetch = self.fetch.bind(self);
+    let fullGets = 0;
+    self.fetch = async (input, options) => {
+      const request = new Request(new URL(typeof input === 'string' ? input : input.url, self.location.origin), options ?? (typeof input === 'string' ? undefined : input));
+      if (new URL(request.url).pathname === ${JSON.stringify(manifestPath)}) return new Response(${JSON.stringify(JSON.stringify(manifest))});
+      if (new URL(request.url).pathname === ${JSON.stringify(indexPath)}) {
+        if (request.method === 'GET') fullGets++;
+        return new Response(request.method === 'HEAD' ? null : new Uint8Array(${JSON.stringify([...index])}), { headers: { 'Content-Length': '${index.length}' } });
+      }
+      return networkFetch(input, options);
+    };
+    self.addEventListener('message', event => { if (event.data === 'fixture:full-gets') event.ports[0].postMessage(fullGets); });
+  `;
+  await context.route("**/sw.js", route => route.fulfill({ contentType: "application/javascript", body: fixture + readFileSync(new URL("../../dist/sw.js", import.meta.url), "utf8")
+    .replace(/const FULL_INDEX = .*;/, `const FULL_INDEX = ${JSON.stringify(descriptor)};`) }));
+  const fullGets = () => page.evaluate(() => new Promise<number>(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = event => resolve(event.data);
+    navigator.serviceWorker.controller!.postMessage('fixture:full-gets', [channel.port2]);
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Offline status: Tools ready" }).click();
+  await page.goto("/woodpecker-generator/");
+  await expect(page.getByRole("button", { name: "Generate puzzle set" })).toBeEnabled();
+  expect(await fullGets()).toBe(0);
+  await page.getByLabel("Puzzles", { exact: true }).fill("1");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+  await expect(page.getByText(`${manifest.recordCount} local records`, { exact: true })).toBeVisible();
+  expect(await fullGets()).toBe(0);
+  await page.getByRole("button", { name: "Switch Tool" }).click();
+  expect(await fullGets()).toBe(0);
+  await page.getByRole("button", { name: "Switch Tool" }).click();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  expect(await fullGets()).toBe(0);
+  await page.getByRole("button", { name: "Generate puzzle set" }).click();
+  await expect(page.getByRole("button", { name: "Export JSON" })).toBeVisible();
+  expect(await fullGets()).toBeGreaterThan(0);
+  const warmedGets = await fullGets();
+  expect(await page.evaluate(async path => {
+    const response = await fetch(path, { method: "HEAD" });
+    return { length: response.headers.get("Content-Length"), body: await response.text() };
+  }, indexPath)).toEqual({ length: String(index.length), body: "" });
+  expect(await fullGets()).toBe(warmedGets);
+});
+
 test("optional full database is verified offline independently without index requests", async ({ page, context }) => {
   const requests: string[] = [];
   context.on("request", request => { if (request.url().includes("puzzle-index.generated")) requests.push(request.url()); });

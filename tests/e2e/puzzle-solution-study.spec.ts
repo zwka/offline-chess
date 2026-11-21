@@ -56,6 +56,76 @@ test("incorrect move alone and direct Reader entry cannot expose the supplied li
   await expect(page.getByRole("button", { name: "Forward", exact: true })).toHaveCount(0);
 });
 
+test("revealed Puzzle remains studyable from history after Next, reload and exact-origin return", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-11-21T10:00:00Z") });
+  await page.goto("/woodpecker-trainer/");
+  await page.getByRole("button", { name: "Start new Run" }).click();
+  await page.getByRole("button", { name: "Show solution" }).click();
+  await page.getByRole("button", { name: "Study solution", exact: true }).click();
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await page.getByRole("button", { name: "Resume solving", exact: true }).click();
+  await page.getByRole("button", { name: "Next puzzle", exact: true }).click();
+  await expect(page.getByText("0008Q", { exact: true })).toBeVisible();
+  // The context saved before Next is still independently verified by Reader.
+  await page.goto("/pgn-reader/?solution=1");
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await page.locator(".history-row").first().click();
+  await expect(page.locator(".detail-score")).toContainText("0/");
+  const before = await runs(page) as Array<{ id: string; results: Array<{ puzzleId: string }> }>;
+  await page.getByRole("button", { name: "Study solution · Puzzle 1", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+  await page.getByRole("button", { name: "End", exact: true }).click();
+  const caption = await page.locator(".move-caption").textContent();
+  await page.reload();
+  await expect(page.locator(".move-caption")).toHaveText(caption!);
+  await page.clock.fastForward(86_400_000);
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`solutionRun=${before[0].id}&puzzle=${before[0].results[0].puzzleId}`));
+  await expect(page.getByRole("heading", { name: "Run history" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Study solution · Puzzle 1", exact: true })).toBeVisible();
+  await page.clock.fastForward(86_400_000);
+  expect(await runs(page)).toEqual(before);
+});
+
+test("legacy current revelation remains verifiable and survives its first advance after upgrade", async ({ page }) => {
+  await page.goto("/woodpecker-trainer/");
+  await page.getByRole("button", { name: "Start new Run" }).click();
+  await page.getByRole("button", { name: "Show solution" }).click();
+  await page.getByRole("button", { name: "Study solution", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+  // Existing schema-v2 installations did not store this additive metadata.
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("offline-woodpecker-trainer", 1);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("runs", "readwrite");
+      const store = tx.objectStore("runs");
+      const get = store.getAll();
+      get.onsuccess = () => {
+        for (const run of get.result) {
+          for (const result of run.results) delete result.solutionRevealed;
+          store.put(run);
+        }
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }));
+  await page.reload();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await page.getByRole("button", { name: "Resume solving", exact: true }).click();
+  await page.getByRole("button", { name: "Next puzzle", exact: true }).click();
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await page.locator(".history-row").first().click();
+  await page.getByRole("button", { name: "Study solution · Puzzle 1", exact: true }).click();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+  await page.reload();
+  await expect(page.locator(".move-caption")).toHaveText("start position");
+});
+
 const fixtures = [
   { name: "black full line", fen: "8/4R3/1p2P3/p4r2/P6p/1P3Pk1/4K3/8 w - - 1 64", moves: ["e7f7", "f5e5", "e2f1", "e5e6"], sans: ["Re5+", "Kf1", "Rxe6"], square: "e6", piece: "r" },
   { name: "white underpromotion", fen: "8/P7/8/8/8/8/7k/4K3 b - - 0 1", moves: ["h2h3", "a7a8n"], sans: ["a8=N"], square: "a8", piece: "N" },

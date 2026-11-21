@@ -63,7 +63,8 @@ import {
 import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePosition, solutionLine } from "./puzzle-session";
 import { formatActiveTime } from "./run-format";
 import { useActiveRunTimer } from "./use-active-run-timer";
-import { SOLUTION_STUDY_KEY, solutionStudyPgn } from "./solution-study";
+import { solutionStudyPgn } from "./solution-study";
+import { SOLUTION_STUDY_KEY, canStudySolution as canStudy, createSolutionStudy, encodeSolutionStudy, solutionLineIdentity } from "../../../../../shared/solution-study.js";
 
 type View = "library" | "archive" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
@@ -618,19 +619,13 @@ function App() {
     handleMoveAttempt(pending.from, pending.to, pending.piece, choice);
   }
 
-  function canStudy(run: Run, index: number): boolean {
-    const result = run.results[index];
-    return result?.status === "first-try-solved" || (result?.status === "failed" && result.completion === "completed") ||
-      (run.status === "active" && run.currentPuzzleIndex === index && run.currentPuzzle.kind === "solution-revealed");
-  }
-
   async function studySolution(run: Run, set: PuzzleSet, index: number) {
     if (!canStudy(run, index) || isPersisting || boardPlayback) return;
     try {
       const puzzle = set.puzzles[index];
       const pgn = solutionStudyPgn(puzzle);
       if (!await prepareToNavigate()) return;
-      localStorage.setItem(SOLUTION_STUDY_KEY, JSON.stringify({ version: 1, runId: run.id, setId: set.id, puzzleId: puzzle.id, index, pgn, line: JSON.stringify([puzzle.fen, puzzle.moves]) }));
+      localStorage.setItem(SOLUTION_STUDY_KEY, encodeSolutionStudy(createSolutionStudy({ runId: run.id, setId: set.id, puzzleId: puzzle.id, index, pgn, line: solutionLineIdentity(puzzle) })));
       location.assign("/pgn-reader/?solution=1");
     } catch {
       setStorageWarning("Puzzle Solution Study could not be saved or its supplied line is invalid. Your Run is unchanged; Resume from the Library to continue.");
