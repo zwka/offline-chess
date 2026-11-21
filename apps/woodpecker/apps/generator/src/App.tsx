@@ -271,6 +271,7 @@ function App() {
   return (
     <div className="app-shell generator-shell">
       <header className="topbar" onClick={(event) => {
+        if (event.defaultPrevented || (event.target as Element).closest("[data-suite-navigation]")) return;
         if (!(event.target as Element).closest("a")) return;
         if (!savedActivity.persist(activity, true) && !window.confirm("Generator activity could not be saved. Leave anyway and lose unsaved changes?")) event.preventDefault();
       }}>

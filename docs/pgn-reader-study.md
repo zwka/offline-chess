@@ -14,6 +14,8 @@ On ordinary entry, unfinished normal Study offers **Resume / Start fresh** rathe
 
 For **#13 navigation**, `renderMobileReader` emits `onPositionChange` synchronously after each selection/flip and `NormalStudyBookmark.save` finishes its small synchronous write before navigation can leave the page. There is no unload-only save or pending debounce to flush. Failed writes explicitly report page-only changes and the possibility of reopening an older saved place; failed Start fresh retains the live Study.
 
+The assembled [Tool switcher and brand](tool-switching.md) also dispatch `offline-chess:before-navigate`. Reader retries the live normal Study bookmark synchronously and cancels that event on failure, keeping the warning and exact live position on the page. An untouched Resume choice is not rewritten by navigation.
+
 For **#14 Puzzle Solution Study**, `renderMobileReader` accepts optional `initialPosition`, `onPositionChange`, and `onRecovery` callbacks. It has no knowledge of the normal bookmark store or Library persistence. A separate solution controller can render its own GameDocument and own its callbacks/storage without importing `NormalStudyBookmark`, changing normal Study, or adding Library sources.
 
 The implemented [Puzzle Solution Study connection](puzzle-solution-study.md) uses those callbacks with its own versioned context and read-only origin verification. Ordinary Reader entry and its normal Study bookmark remain independent.

@@ -16,6 +16,8 @@ The solution's position saves synchronously after each move/flip. Reload or reop
 
 Keep Suite switcher links as ordinary same-origin anchors so Trainer's existing document-level checkpoint intercepts them. Do not add an eager navigation handler. Solution entry deliberately calls `prepareToNavigate` because it must create its separate context after the checkpoint; Reader does not register a competing global navigation handler. Normal Reader bookmark callbacks remain unchanged. Ordinary `/pgn-reader/` and `/woodpecker-trainer/` retain their existing entry choices; only the explicit solution query parameters select this connection.
 
+With #13 integrated, Solution Study also listens for the cancelable `offline-chess:before-navigate` checkpoint event. It retries only its separate solution position/context and cancels on failure, showing a page-only warning and keeping the player here. Its Return to Trainer and ordinary Library anchors are marked for that same Suite guard; the Reader's back control dispatches the event before programmatic departure. Normal Study and Trainer Run storage remain untouched by this checkpoint.
+
 ## Verification
 
 `OFFLINE_CHESS_TEST_PORT=4214 npm run test:e2e -- tests/e2e/puzzle-solution-study.spec.ts --workers=2`
