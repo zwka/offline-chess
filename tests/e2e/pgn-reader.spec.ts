@@ -71,7 +71,7 @@ test.describe("PGN Reader Tool (/pgn-reader/)", () => {
     await expect(page.getByRole("button", { name: "Switch to light mode" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("applies Suite palette tokens, Inter typography, Woodpecker chessboard square colors, and imports and steps through a PGN game", async ({ page }) => {
+  test("uses Suite identity, preserves chessboard artwork, and imports and steps through a PGN game", async ({ page }) => {
     await page.goto("/pgn-reader/");
 
     const darkStyles = await page.evaluate(() => {
@@ -90,11 +90,11 @@ test.describe("PGN Reader Tool (/pgn-reader/)", () => {
       };
     });
 
-    expect(darkStyles.bodyBg).toBe("rgb(23, 35, 33)");
-    expect(darkStyles.bodyColor).toBe("rgb(237, 243, 237)");
-    expect(darkStyles.panelBg).toBe("rgb(32, 47, 44)");
-    expect(darkStyles.fontFamily).toMatch(/^Inter\b/i);
-    expect(darkStyles.accent).toBe("#80c5b7");
+    expect(darkStyles.bodyBg).toBe("rgb(25, 28, 28)");
+    expect(darkStyles.bodyColor).toBe("rgb(243, 236, 222)");
+    expect(darkStyles.panelBg).toBe("rgb(57, 49, 36)");
+    expect(darkStyles.fontFamily).toMatch(/^ui-sans-serif/i);
+    expect(darkStyles.accent).toBe("#e1bc78");
     expect(darkStyles.sqLight).toBe("#e8d6bd");
     expect(darkStyles.sqDark).toBe("#9a6b4d");
 
@@ -113,10 +113,10 @@ test.describe("PGN Reader Tool (/pgn-reader/)", () => {
       };
     });
 
-    expect(lightStyles.bodyBg).toBe("rgb(244, 240, 231)");
-    expect(lightStyles.bodyColor).toBe("rgb(23, 35, 33)");
-    expect(lightStyles.panelBg).toBe("rgb(251, 250, 247)");
-    expect(lightStyles.accent).toBe("#2e625d");
+    expect(lightStyles.bodyBg).toBe("rgb(245, 240, 230)");
+    expect(lightStyles.bodyColor).toBe("rgb(39, 37, 31)");
+    expect(lightStyles.panelBg).toBe("rgb(230, 210, 170)");
+    expect(lightStyles.accent).toBe("#76521e");
 
     const samplePgn = [
       '[Event "Suite Study"]',
