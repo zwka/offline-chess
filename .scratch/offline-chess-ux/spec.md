@@ -1,6 +1,6 @@
 # Offline Chess: independent Tools, cohesive design, durable progress
 
-Status: ready-for-agent
+Status: resolved
 GitHub issue: https://github.com/zwka/offline-chess/issues/3
 
 ## Problem Statement
@@ -158,6 +158,9 @@ Add one optional connection: after solving a Puzzle or revealing its solution, s
 - Starting implementation, creating implementation tickets, committing, or pushing to a remote repository as part of publishing this spec.
 
 ## Further Notes
+
+- Implemented on `integration/offline-chess-ux` in PR https://github.com/zwka/offline-chess/pull/17. All 13 local implementation tickets are resolved; GitHub issues close when the PR merges.
+- Final integrated verification at `757f0b4`, using pinned Node 24.11.1: 160 browser tests, 30 repeated regressions, 10 CLI/shared tests, 118 Reader tests, and 42 Woodpecker tests passed; 14 existing opt-in tests skipped. Both Tool typechecks passed. Two-axis review findings were fixed and independently re-reviewed with no remaining actionable findings. Physical-device installation and screen-reader verification were not performed.
 
 - The user confirmed the complete design brief, requested `/to-spec`, and approved the proposed testing seams. Final logo proportions, exact colors/type sizing, layout breakpoints, and storage interfaces require refinement within the agreed direction; the inline sketches are not final production assets.
 - Exploration selected the gallery over journal/compact-list alternatives; Ink & Brass over Forest & Parchment and Slate & Blue; Open board over the custom knight and OC monogram; richer brass over the quieter treatment.
