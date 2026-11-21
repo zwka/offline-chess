@@ -39,6 +39,7 @@ test.describe("Woodpecker Generator to Trainer Puzzle Set Handoff ('Do Puzzles')
 
     await page.getByLabel("Set name").fill("Woodpecker Cycle 1");
     await page.getByLabel("Puzzles").fill("2");
+    await page.getByText("Advanced options", { exact: true }).click();
     await page.getByLabel("Random seed").fill("woodpecker-2026");
     await page.getByRole("button", { name: /Generate puzzle set/i }).click();
     await expect(page.getByRole("status")).toContainText("2 puzzles selected from 6 matches.");
@@ -61,6 +62,7 @@ test.describe("Woodpecker Generator to Trainer Puzzle Set Handoff ('Do Puzzles')
     await expect(page).toHaveURL(/\/woodpecker-generator\/$/);
 
     // Generate the identical Puzzle Set (same seed & parameters -> same contentHash)
+    await page.getByText("Advanced options", { exact: true }).click();
     await page.getByLabel("Set name").fill("Woodpecker Cycle 1");
     await page.getByLabel("Puzzles").fill("2");
     await page.getByLabel("Random seed").fill("woodpecker-2026");

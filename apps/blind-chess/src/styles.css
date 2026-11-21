@@ -1,95 +1,76 @@
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--suite-sans);
   color: var(--ink);
   background: var(--page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   color-scheme: light;
   font-weight: 400;
-  --page: #f4f3ee;
-  --ink: #17241f;
-  --muted: #68736d;
-  --line: #d7d9d1;
-  --surface: #fbfaf6;
-  --surface-raised: #fff;
-  --surface-hover: #e9ebe4;
-  --surface-hover-alt: #e8eee8;
-  --surface-quiet: #e4ebdf;
-  --surface-muted: #e6eae2;
   --surface-danger: #f0e7e1;
-  --line-strong: #b8c8be;
-  --line-subtle: #e0e1db;
-  --green: #1d6b53;
-  --green-dark: #14543f;
-  --green-control: #216b53;
-  --green-control-hover: #14543f;
-  --green-control-border: #1c604a;
   --coral: #aa4938;
   --danger-ink: #795048;
-  --focus: #75a996;
-  --quiet-text: #87938b;
-  --faint-text: #98a29b;
-  --footer-text: #818b84;
-  --body-copy: #425047;
-  --install-copy: #48564e;
-  --footer-rule: #4c5a52;
-  --brand-mark-border: #bbcbc1;
-  --board-light: #faf9f4;
-  --board-dark: #28735a;
-  --board-border: #fbfaf6;
-  --board-outline: #d4d9d1;
-  --answer-border: #cbd0c7;
-  --secondary-border: #c4cbc2;
-  --round-track: #dfe2da;
-  --dialog-border: #d3d8cf;
   --dialog-shadow: #15241d30;
   --dialog-backdrop: #14231d78;
-  --install-line: #e2e3dd;
-  --on-accent: #fff;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #141b17;
-  --ink: #e7eee9;
-  --muted: #a5b2a9;
-  --line: #35443b;
-  --surface: #1b2721;
-  --surface-raised: #233129;
-  --surface-hover: #29382f;
-  --surface-hover-alt: #25392e;
-  --surface-quiet: #2c3d32;
-  --surface-muted: #29392f;
   --surface-danger: #452e29;
-  --line-strong: #53645a;
-  --line-subtle: #35443b;
-  --green: #58b889;
-  --green-dark: #8bd3aa;
-  --green-control: #21694f;
-  --green-control-hover: #2d7b5c;
-  --green-control-border: #5fb58a;
   --coral: #ff9180;
   --danger-ink: #ffc1b7;
-  --focus: #f0d36d;
-  --quiet-text: #93a198;
-  --faint-text: #839188;
-  --footer-text: #89978f;
-  --body-copy: #c4d0c8;
-  --install-copy: #c2cec6;
-  --footer-rule: #b2beb6;
-  --brand-mark-border: #536359;
-  --board-light: #e3e9e1;
-  --board-dark: #245e47;
-  --board-border: #34443b;
-  --board-outline: #637268;
-  --answer-border: #526258;
-  --secondary-border: #526258;
-  --round-track: #34443a;
-  --dialog-border: #46564c;
   --dialog-shadow: #00000080;
   --dialog-backdrop: #050906b0;
-  --install-line: #35443a;
-  --on-accent: #fff;
+}
+
+/* Bind the existing drill layouts to the Suite identity. Semantic feedback
+   stays green/red rather than borrowing the brass interaction accent. */
+:root,
+:root[data-theme="dark"] {
+  --page: var(--suite-bg);
+  --ink: var(--suite-ink);
+  --muted: var(--suite-muted);
+  --line: var(--suite-line);
+  --surface: var(--suite-surface);
+  --surface-raised: var(--suite-surface);
+  --surface-hover: var(--suite-brass-surface);
+  --surface-hover-alt: var(--suite-brass-surface);
+  --surface-quiet: var(--suite-brass-surface);
+  --surface-muted: var(--suite-brass-surface);
+  --line-strong: var(--suite-line);
+  --line-subtle: var(--suite-line);
+  --green: var(--suite-brass);
+  --green-dark: var(--suite-brass);
+  --green-control: var(--suite-brass-surface);
+  --green-control-hover: var(--suite-surface);
+  --green-control-border: var(--suite-brass);
+  --focus: var(--suite-focus);
+  --quiet-text: var(--suite-muted);
+  --faint-text: var(--suite-muted);
+  --footer-text: var(--suite-muted);
+  --body-copy: var(--suite-ink);
+  --install-copy: var(--suite-ink);
+  --install-line: var(--suite-line);
+  --footer-rule: var(--suite-muted);
+  --board-border: var(--suite-brass-surface);
+  --board-outline: var(--suite-brass);
+  --answer-border: var(--suite-line);
+  --secondary-border: var(--suite-line);
+  --round-track: var(--suite-brass-surface);
+  --dialog-border: var(--suite-line);
+}
+
+:root {
+  --board-light: #f3e2bf;
+  --board-dark: #76521e;
+  --success: #195f43;
+  --on-accent: #fffaf0;
+}
+
+:root[data-theme="dark"] {
+  --board-light: #e6d2aa;
+  --board-dark: #765b32;
+  --success: #8bd3aa;
+  --on-accent: #191c1c;
 }
 
 * {
@@ -148,6 +129,8 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
+  background: var(--suite-brass-surface);
+  box-shadow: 24px 0 var(--suite-brass-surface), -24px 0 var(--suite-brass-surface);
 }
 
 .brand {
@@ -158,39 +141,71 @@ button:disabled {
 }
 
 .brand-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--brand-mark-border);
-  border-radius: 4px;
-  background: var(--surface);
+  flex: 0 0 44px;
+  color: var(--suite-brass);
 }
 
-.brand-mark span:nth-child(2),
-.brand-mark span:nth-child(4),
-.brand-mark span:nth-child(6),
-.brand-mark span:nth-child(8) {
-  background: var(--green);
+.brand-wordmark {
+  font-family: var(--suite-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
-.brand-label {
-  display: grid;
-  gap: 2px;
-  font-size: 10px;
-  line-height: 1.2;
+h1,
+h2 {
+  font-family: var(--suite-serif);
 }
 
-.brand-label strong {
-  font-size: 11px;
-  font-weight: 750;
+.preparation-page {
+  width: min(100%, 700px);
+  flex: 1;
+  padding: 48px 0;
+  line-height: 1.6;
 }
 
-.brand-label span {
-  color: var(--muted);
-  font-size: 9px;
+.preparation-page h1 {
+  margin: 12px 0 28px;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1;
+}
+
+.preparation-instructions {
+  padding: 20px;
+  border-left: 3px solid var(--suite-brass);
+  background: var(--suite-surface);
+}
+
+.preparation-instructions h2 {
+  margin: 0;
+}
+
+.preparation-instructions p:last-child {
+  margin-bottom: 0;
+}
+
+.preparation-page .primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timing-note {
+  padding: 12px 16px;
+  background: var(--suite-brass-surface);
+  color: var(--suite-ink);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
+.app-shell .theme-toggle,
+.app-shell .text-button,
+.app-shell .icon-button,
+.app-shell .inline-link,
+.app-shell .footer-rule,
+.app-shell .clear-button,
+.brand {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .topbar-actions {
@@ -452,7 +467,7 @@ button:disabled {
   position: absolute;
   right: 3px;
   bottom: 2px;
-  color: var(--on-accent);
+  color: #fffaf0;
   font-size: 9px;
   font-weight: 700;
 }
@@ -517,6 +532,14 @@ button:disabled {
 
 .coordinate-square:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+.coordinate-square:focus-visible {
+  position: relative;
+  z-index: 3;
+  outline: 3px solid #191c1c;
+  outline-offset: -4px;
+  box-shadow: inset 0 0 0 7px #fffaf0;
 }
 
 .coordinate-square:disabled {
@@ -665,14 +688,21 @@ button:disabled {
   font-size: 14px;
   font-weight: 650;
   text-transform: capitalize;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: var(--suite-brass-surface);
+  text-align: center;
 }
 
 .answer-feedback--correct {
-  color: var(--green-dark);
+  color: var(--success);
+  background: var(--surface);
 }
 
 .answer-feedback--incorrect {
   color: var(--coral);
+  background: var(--surface);
 }
 
 .answer-controls {
@@ -740,7 +770,7 @@ button:disabled {
 .answer-button--dark {
   border-color: var(--green-control-border);
   background: var(--green-control);
-  color: var(--on-accent);
+  color: var(--ink);
 }
 
 .answer-button--dark:hover:not(:disabled) {
@@ -1304,14 +1334,6 @@ button:disabled {
 }
 
 @media (max-width: 420px) {
-  .brand-label {
-    font-size: 9px;
-  }
-
-  .brand-label strong {
-    font-size: 10px;
-  }
-
   .topbar-actions {
     gap: 0;
   }

@@ -10,11 +10,12 @@
   <title>PGN Reader Mobile</title>
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="./mobile.css">
+   <link rel="stylesheet" href="/identity/identity.css">
+   <link rel="stylesheet" href="./mobile.css">
 </head>
 <body>
   <header class="mobile-header">
-    <a class="brand" href="./">PGN Reader <span>Mobile</span></a>
+    <a class="brand" href="/" aria-label="Offline Chess"><svg viewBox="0 0 64 64" width="38" height="38" aria-hidden="true"><use href="/identity/symbols.svg#open-board"></use></svg><span>Offline Chess</span></a>
     <div class="header-actions">
       <button
         id="theme-toggle"
@@ -44,11 +45,15 @@
   </header>
 
   <main id="app" class="mobile-main">
+    <div id="library-heading" class="library-heading">
+      <div><p class="kicker">PGN Reader</p><h1 tabindex="-1" id="library-title">Library</h1><p class="panel-note">Your sources and games, ready for focused study.</p></div>
+      <button id="return-study" class="reader-secondary-button" type="button" hidden>Return to Study</button>
+    </div>
     <section id="import-panel" class="import-panel" aria-labelledby="import-title">
       <div>
-        <p class="kicker">Mobile Library</p>
-        <h1 id="import-title">PGN sources</h1>
-        <p class="panel-note">Retain multiple local sources in your Mobile Library.</p>
+        <p class="kicker">Import</p>
+        <h2 id="import-title">PGN sources</h2>
+        <p class="panel-note">Add a local file. Existing sources stay in your Library.</p>
       </div>
       <div class="import-actions">
         <label class="file-picker" for="source-input">

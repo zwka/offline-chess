@@ -424,6 +424,7 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
       page.getByRole("heading", { name: "Choose a drill", level: 1 }),
     ).toBeVisible();
     await page.getByRole("button", { name: /Square Colors/i }).click();
+    await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByText("WHAT COLOR IS THIS SQUARE?")).toBeVisible();
 
     // 3. PGN Reader (/pgn-reader/) offline navigation + hard reload + PGN import & piece rendering
