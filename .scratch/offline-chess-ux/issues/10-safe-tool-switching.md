@@ -1,6 +1,6 @@
 # Switch directly between Tools without losing work
 
-Status: ready-for-agent
+Status: claimed
 GitHub issue: https://github.com/zwka/offline-chess/issues/13
 
 ## Parent

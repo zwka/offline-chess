@@ -131,6 +131,13 @@ function renderStudyNotice(): void {
   freshStudy.hidden = reading || !normalStudy.value;
   studyNotice.hidden = !studyMessage.textContent || (reading && normalStudy.message === "Study saved on this device.");
 }
+// Retry the current synchronous bookmark before Suite navigation. Merely visiting
+// an entry choice must not rewrite it; Puzzle Solution Study owns its own state.
+window.addEventListener("offline-chess:before-navigate", (event) => {
+  if (!activeReader || !normalStudy.value) return;
+  if (!normalStudy.save(normalStudy.value)) event.preventDefault();
+  renderStudyNotice();
+});
 void library.ready().then(() => {
   if (normalStudy.legacy) {
     const source = library.source;

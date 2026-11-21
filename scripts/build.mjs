@@ -90,6 +90,13 @@ for (const surface of [distDir, suiteBlindChessDistDir, pgnReaderOutDir, suiteGe
   await writeFile(htmlPath, html.replace("</head>", '<link rel="stylesheet" href="/offline-status.css"><script type="module" src="/offline-status.js"></script></head>'));
 }
 
+// Navigation is Suite-only: Source App previews and the Landing Page stay independent.
+for (const surface of [suiteBlindChessDistDir, pgnReaderOutDir, suiteGeneratorDistDir, suiteTrainerDistDir]) {
+  const htmlPath = join(surface, "index.html");
+  const html = await readFile(htmlPath, "utf8");
+  await writeFile(htmlPath, html.replace("</head>", '<link rel="stylesheet" href="/tool-switcher.css"><script type="module" src="/tool-switcher.js"></script></head>'));
+}
+
 const EXCLUDED_PRECACHE_PATHS = new Set([
   "/sw.js",
   "/woodpecker-generator/puzzle-index.generated.jsonl.gz",

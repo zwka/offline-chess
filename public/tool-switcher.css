@@ -1,0 +1,13 @@
+#suite-tool-switcher { position: relative; flex: 0 0 auto; font: 0.875rem var(--suite-sans); letter-spacing: normal; }
+#suite-tool-switcher > button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 44px; padding: 0.5rem 0.7rem; border: 1px solid var(--suite-line); border-radius: 8px; background: var(--suite-surface); color: var(--suite-ink); font: inherit; cursor: pointer; }
+#suite-tool-switcher nav { position: absolute; z-index: 1000; top: calc(100% + 6px); right: 0; width: min(290px, calc(100vw - 24px)); padding: 6px; border: 1px solid var(--suite-line); border-radius: 10px; background: var(--suite-surface); box-shadow: 0 12px 36px #0004; }
+#suite-tool-switcher nav[hidden] { display: none; }
+#suite-tool-switcher a { display: flex; align-items: center; gap: 0.6rem; min-height: 48px; padding: 0.5rem; border-radius: 6px; color: var(--suite-ink); text-decoration: none; font: inherit; }
+#suite-tool-switcher svg { flex-shrink: 0; color: var(--suite-brass); --identity-icon-surface: var(--suite-surface); }
+#suite-tool-switcher small { margin-left: auto; font-size: 0.7rem; color: var(--suite-muted); }
+#suite-tool-switcher a[aria-current], #suite-tool-switcher a:hover { background: var(--suite-brass-surface); }
+#suite-tool-switcher :is(a, button):focus-visible { outline: 3px solid var(--suite-focus); outline-offset: 2px; }
+@media (max-width: 600px) {
+  #suite-tool-switcher nav { position: fixed; top: auto; right: 12px; margin-top: 6px; }
+  header:has(#suite-tool-switcher), header:has(#suite-tool-switcher) :is(.topbar-actions, .header-actions) { flex-wrap: wrap; }
+}
