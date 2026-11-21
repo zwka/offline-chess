@@ -27,7 +27,8 @@ Return to saved Generator filters and a previously generated Puzzle Set after na
 ## Answer
 
 Implemented on `ux/ticket-10`, created from integration tip `4101e95` with
-`64a4d96` confirmed as an ancestor. Merged latest integration `013b0fa` before final verification.
+`64a4d96` confirmed as an ancestor. Merged integration `013b0fa`, then latest
+integration `c1772c1` (Reader and Blind Chess resumption), before final verification.
 
 - Generator persists one versioned, atomic localStorage record as filters and
   completed output change. It contains no source index or Trainer state.
@@ -51,7 +52,7 @@ Implemented on `ux/ticket-10`, created from integration tip `4101e95` with
 
 - TDD red → green observed for missing Resume/output restoration, fractional
   generation input, untouched-entry behavior and back-forward-cache reentry.
-- `OFFLINE_CHESS_TEST_PORT=4210 npx playwright test`: **95 passed** after merging
+- `OFFLINE_CHESS_TEST_PORT=4210 npx playwright test`: **129 passed** after merging
   integration and the final lifecycle fix. Includes real persistent Chromium
   profile close/relaunch, exact exported-output comparison, storage failures,
   phone keyboard controls, both Themes, and existing offline/Trainer journeys.
@@ -63,7 +64,8 @@ Implemented on `ux/ticket-10`, created from integration tip `4101e95` with
 - Reviewed phone Resume screenshots in light and dark; retained Generator
   essentials/output reachability coverage at 320, 390 and 1440px.
 - A broad rerun exceeded the shell's 120-second limit; its owned preview process
-  was stopped and a fresh run with a longer shell limit passed all 95 tests.
+  was stopped and a fresh run with a longer shell limit passed all 95 tests;
+  the subsequent latest-integration rerun passed all 129 tests.
   Known readiness-update tests were neither weakened nor changed.
 
 No acceptance gaps remain. Physical-device installation and opt-in installation
