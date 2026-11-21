@@ -1,6 +1,6 @@
 # Resume Blind Chess rounds without losing time or answers
 
-Status: ready-for-agent
+Status: claimed
 GitHub issue: https://github.com/zwka/offline-chess/issues/6
 
 ## Parent

@@ -8,23 +8,29 @@ function newestFirst(attempts: Attempt[]): Attempt[] {
   return [...attempts].sort((left, right) => right.completedAt.localeCompare(left.completedAt));
 }
 
-export function readAttempts(): Attempt[] {
+function loadAttempts(): { attempts: Attempt[]; readable: boolean } {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === null) {
-      return [];
+      return { attempts: [], readable: true };
     }
 
     const parsed: unknown = JSON.parse(stored);
     const result = AttemptsSchema.safeParse(parsed);
-    return result.success ? newestFirst(result.data) : [];
+    return result.success ? { attempts: newestFirst(result.data), readable: true } : { attempts: [], readable: false };
   } catch {
-    return [];
+    return { attempts: [], readable: false };
   }
 }
 
+export function readAttempts(): Attempt[] {
+  return loadAttempts().attempts;
+}
+
 export function saveAttempt(attempt: Attempt): { attempts: Attempt[]; saved: boolean } {
-  const attempts = newestFirst([attempt, ...readAttempts().filter((saved) => saved.id !== attempt.id)]);
+  const history = loadAttempts();
+  const attempts = newestFirst([attempt, ...history.attempts.filter((saved) => saved.id !== attempt.id)]);
+  if (!history.readable) return { attempts, saved: false };
 
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(attempts));

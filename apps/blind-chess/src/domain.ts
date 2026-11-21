@@ -155,6 +155,7 @@ type RoundSnapshot =
 type ReadyRoundFor<Snapshot> = Snapshot extends RoundSnapshot
   ? Omit<Snapshot, "correct" | "answered" | "feedback"> & {
       kind: "ready";
+      activityId?: string;
       correct: 0;
       answered: 0;
       feedback: null;
@@ -162,11 +163,11 @@ type ReadyRoundFor<Snapshot> = Snapshot extends RoundSnapshot
   : never;
 
 type RunningRoundFor<Snapshot> = Snapshot extends RoundSnapshot
-  ? Snapshot & { kind: "running"; endsAt: number }
+  ? Snapshot & { kind: "running"; endsAt: number; activityId?: string }
   : never;
 
 type PausedRoundFor<Snapshot> = Snapshot extends RoundSnapshot
-  ? Snapshot & { kind: "paused"; remainingMs: number }
+  ? Snapshot & { kind: "paused"; remainingMs: number; activityId?: string }
   : never;
 
 export type ReadyRound = ReadyRoundFor<RoundSnapshot>;
