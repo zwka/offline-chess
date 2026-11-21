@@ -79,12 +79,12 @@ export async function renderMobileReader(
     h(
       "button",
       { class: "reader-back", type: "button" },
-      "Back to Game records",
+      "Back to Library",
     ),
     h(
       "div",
       { class: "reader-heading" },
-      h("p", { class: "kicker" }, "Reader"),
+      h("p", { class: "kicker" }, "PGN Reader · Study"),
       h("h1", { class: "reader-title" }, title),
       h(
         "div",
@@ -124,14 +124,26 @@ export async function renderMobileReader(
         "section",
         { class: "board-column" },
         h("div", { class: "board-wrap" }, boardHost, boardControls, caption),
-        metadata,
-        warningPanel,
-        h("div", { class: "pgn-drawer raw-source-drawer" }, rawButton, source),
       ),
       h(
         "section",
         { class: "notation-column", "aria-label": "Game notation" },
         notationPane,
+      ),
+      h(
+        "section",
+        { class: "study-details", "aria-label": "Game details" },
+        metadata,
+        warningPanel,
+        h("div", { class: "pgn-drawer raw-source-drawer" }, rawButton, source),
+        h(
+          "p",
+          { class: "piece-credit" },
+          "Chess pieces by ",
+          h("a", { href: "https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard_transparent" }, "Cburnett, Wikimedia Commons"),
+          " · ",
+          h("a", { href: "https://creativecommons.org/licenses/by-sa/3.0/" }, "CC BY-SA 3.0"),
+        ),
       ),
     ),
   );
@@ -141,6 +153,7 @@ export async function renderMobileReader(
   selectNode(currentId);
 
   const onKey = (event: KeyboardEvent): void => {
+    if (panel.hidden) return;
     const target = event.target as HTMLElement | null;
     if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "BUTTON") return;
     const actions: Record<string, () => void> = {

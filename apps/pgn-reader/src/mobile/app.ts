@@ -14,6 +14,8 @@ const sourceList = getElement<HTMLElement>("source-list");
 const sourceListSummary = getElement<HTMLElement>("source-list-summary");
 const recordsPanel = getElement<HTMLElement>("records-panel");
 const readerPanel = getElement<HTMLElement>("reader-panel");
+const libraryHeading = getElement<HTMLElement>("library-heading");
+const returnStudy = getElement<HTMLButtonElement>("return-study");
 const sourceName = getElement<HTMLElement>("source-name");
 const sourceStatus = getElement<HTMLElement>("source-status");
 const sourceSize = getElement<HTMLElement>("source-size");
@@ -88,7 +90,12 @@ let offset = 0;
 let selectedGameId: number | null = null;
 let readerGeneration = 0;
 let activeReader: MobileReaderHandle | null = null;
-let observedActiveSourceId = library.activeSourceId;
+let studySourceId: number | null = null;
+
+returnStudy.addEventListener("click", () => {
+  setReaderMode(true);
+  readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
+});
 
 sourceInput.addEventListener("change", () => {
   const file = sourceInput.files?.[0];
@@ -99,9 +106,7 @@ sourceInput.addEventListener("change", () => {
   searchInput.value = "";
   void library.replaceSource({ name: file.name, blob: file }).then(() => {
     if (library.replacement !== null) return;
-    if (library.activeSourceId !== previousActiveSourceId) {
-      closeReader();
-    } else if (library.error && selectedGameId !== null) {
+    if (library.activeSourceId === previousActiveSourceId && library.error && selectedGameId !== null) {
       showReaderError(`Could not import the source: ${library.error}`);
     }
   });
@@ -137,12 +142,10 @@ nextPage.addEventListener("click", () => {
 });
 
 library.subscribe(() => {
-  const activeSourceChanged = library.activeSourceId !== observedActiveSourceId;
-  observedActiveSourceId = library.activeSourceId;
   renderSourceList(library.sources);
   renderSource(library.source);
-  if (activeSourceChanged && selectedGameId !== null) closeReader();
-  if (selectedGameId === null && library.replacement === null) renderGames();
+  if (selectedGameId !== null && !library.sources.some((source) => source.id === studySourceId)) closeReader();
+  if (library.replacement === null) renderGames();
 });
 
 window.addEventListener("beforeunload", () => {
@@ -368,10 +371,17 @@ function formatBytes(bytes: number): string {
 }
 
 function openGame(gameId: number): void {
+  if (activeReader && selectedGameId === gameId && studySourceId === library.activeSourceId) {
+    setReaderMode(true);
+    readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
+    return;
+  }
   selectedGameId = gameId;
+  studySourceId = library.activeSourceId;
   const generation = ++readerGeneration;
   activeReader?.cleanup();
   activeReader = null;
+  returnStudy.hidden = true;
   setReaderMode(true);
   readerPanel.replaceChildren(
     loading("Opening Game record..."),
@@ -385,14 +395,19 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
     const document = await library.getGameDocument(gameId);
     if (generation !== readerGeneration || selectedGameId !== gameId) return;
     const reader = await renderMobileReader(readerPanel, document, {
-      onBack: closeReader,
-      onNavigate: openGame,
+      onBack: browseLibrary,
+      onNavigate: (nextId) => {
+        if (studySourceId === null) return;
+        void library.selectSource(studySourceId).then(() => openGame(nextId));
+      },
     });
     if (generation !== readerGeneration || selectedGameId !== gameId) {
       reader.cleanup();
       return;
     }
     activeReader = reader;
+    returnStudy.hidden = false;
+    if (!readerPanel.hidden) readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
     await library.rememberGame(document.fileId, document.gameId);
     if (generation !== readerGeneration || selectedGameId !== gameId) {
       reader.cleanup();
@@ -406,7 +421,7 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
       h(
         "button",
         { class: "reader-back", type: "button" },
-        "Back to Game records",
+        "Back to Library",
       ),
     );
     readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.addEventListener("click", closeReader);
@@ -415,11 +430,19 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
 
 function closeReader(): void {
   selectedGameId = null;
+  studySourceId = null;
+  returnStudy.hidden = true;
   readerGeneration += 1;
   activeReader?.cleanup();
   activeReader = null;
   setReaderMode(false);
   renderGames();
+}
+
+function browseLibrary(): void {
+  setReaderMode(false);
+  renderGames();
+  getElement<HTMLElement>("library-title").focus();
 }
 
 function resetListView(): void {
@@ -445,6 +468,8 @@ function showReaderError(message: string): void {
 }
 
 function setReaderMode(readerOpen: boolean): void {
+  libraryHeading.hidden = readerOpen;
+  document.getElementById("app")?.classList.toggle("study-open", readerOpen);
   importPanel.hidden = readerOpen;
   sourcePanel.hidden = readerOpen;
   recordsPanel.hidden = readerOpen;
