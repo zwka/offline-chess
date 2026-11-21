@@ -501,6 +501,12 @@ export class PersistentMobileLibrary implements MobileLibrary {
     const gameIds = new Set<number>();
     const states = new Map<number, MobileSourceState>();
     for (const persisted of snapshot.sources) {
+      const bookmark = persisted.source.resumeBookmark;
+      if (bookmark !== null && (!bookmark || bookmark.sourceId !== persisted.source.id ||
+          !persisted.games.some(({ record }) => record.id === bookmark.gameId))) {
+        persisted.source.resumeBookmark = null;
+        this.lastError = "An older study bookmark is missing or invalid. Retained PGNs are still available; choose a game to recover.";
+      }
       validatePersistedSource(persisted);
       if (sourceIds.has(persisted.source.id)) throw new Error("Stored Mobile Library data has duplicate source ids.");
       sourceIds.add(persisted.source.id);

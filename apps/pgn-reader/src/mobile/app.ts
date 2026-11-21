@@ -7,6 +7,7 @@ import {
   type MobileSourceRecord,
 } from "./library.js";
 import { renderMobileReader, type MobileReaderHandle } from "./reader.js";
+import { NormalStudyBookmark, type StudyBookmark } from "./study-bookmark.js";
 
 const importPanel = getElement<HTMLElement>("import-panel");
 const sourcePanel = getElement<HTMLElement>("source-panel");
@@ -91,6 +92,55 @@ let selectedGameId: number | null = null;
 let readerGeneration = 0;
 let activeReader: MobileReaderHandle | null = null;
 let studySourceId: number | null = null;
+const normalStudy = new NormalStudyBookmark();
+const studyNotice = h("section", { class: "meta-panel study-activity", "aria-label": "Saved study" });
+const studyMessage = h("p", { role: "status" });
+const resumeStudy = h("button", { type: "button", class: "reader-secondary-button" }, "Resume");
+const freshStudy = h("button", { type: "button", class: "reader-secondary-button" }, "Start fresh");
+studyNotice.append(studyMessage, resumeStudy, freshStudy);
+libraryHeading.after(studyNotice);
+resumeStudy.addEventListener("click", () => {
+  const bookmark = normalStudy.value;
+  if (!bookmark) return;
+  const source = library.sources.find((candidate) => candidate.id === bookmark.sourceId);
+  if (!source || source.name !== bookmark.sourceName || source.size !== bookmark.sourceSize) {
+    normalStudy.message = "The saved source is missing. Your other Library content is still available; choose a game to recover.";
+    renderStudyNotice();
+    return;
+  }
+  void library.selectSource(source.id).then(() => {
+    if (library.activeSourceId !== source.id) {
+      normalStudy.message = "Could not select the saved source. Your saved study is unchanged; Library remains available.";
+      renderStudyNotice();
+      return;
+    }
+    openGame(bookmark.gameId, bookmark);
+  });
+});
+freshStudy.addEventListener("click", () => {
+  if (!window.confirm("Replace your unfinished PGN study? Start fresh clears its saved place only. Imported PGNs and completed history are retained.")) return;
+  if (!normalStudy.save(null)) { renderStudyNotice(); return; }
+  closeReader();
+  getElement<HTMLElement>("library-title").focus();
+  renderStudyNotice();
+});
+function renderStudyNotice(): void {
+  const reading = !readerPanel.hidden;
+  studyMessage.textContent = normalStudy.message || (normalStudy.value ? "Unfinished PGN study. Resume your saved place or start fresh." : "");
+  resumeStudy.hidden = reading || !normalStudy.value || activeReader !== null;
+  freshStudy.hidden = reading || !normalStudy.value;
+  studyNotice.hidden = !studyMessage.textContent || (reading && normalStudy.message === "Study saved on this device.");
+}
+void library.ready().then(() => {
+  if (normalStudy.legacy) {
+    const source = library.source;
+    if (source?.resumeBookmark) {
+      normalStudy.value = { version: 1, sourceId: source.id, gameId: source.resumeBookmark.gameId, sourceName: source.name, sourceSize: source.size };
+      normalStudy.message = "Older study bookmark: Resume opens the saved game at its start; an exact move was not stored.";
+    }
+  }
+  renderStudyNotice();
+});
 
 returnStudy.addEventListener("click", () => {
   setReaderMode(true);
@@ -370,11 +420,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function openGame(gameId: number): void {
+function openGame(gameId: number, bookmark?: StudyBookmark): void {
   if (activeReader && selectedGameId === gameId && studySourceId === library.activeSourceId) {
     setReaderMode(true);
     readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
     return;
+  }
+  const saved = normalStudy.value;
+  if (!bookmark && saved) {
+    if (saved.sourceId === library.activeSourceId && saved.gameId === gameId) bookmark = saved;
+    else if (!window.confirm("Replace your unfinished PGN study with this game? Imported PGNs and completed history are retained.")) return;
   }
   selectedGameId = gameId;
   studySourceId = library.activeSourceId;
@@ -387,14 +442,27 @@ function openGame(gameId: number): void {
     loading("Opening Game record..."),
   );
 
-  void loadGame(gameId, generation);
+  void loadGame(gameId, generation, bookmark);
 }
 
-async function loadGame(gameId: number, generation: number): Promise<void> {
+async function loadGame(gameId: number, generation: number, bookmark?: StudyBookmark): Promise<void> {
   try {
     const document = await library.getGameDocument(gameId);
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(document.source))), (byte) => byte.toString(16).padStart(2, "0")).join("");
     if (generation !== readerGeneration || selectedGameId !== gameId) return;
+    let recovery = bookmark && !bookmark.position ? "Older bookmark restored at the start of the game; no exact move was stored." : "";
+    if (bookmark?.digest && bookmark.digest !== digest) recovery = "The saved game content changed. Opened at its start instead.";
+    const source = library.sources.find((candidate) => candidate.id === document.fileId)!;
     const reader = await renderMobileReader(readerPanel, document, {
+      initialPosition: bookmark?.digest && bookmark.digest !== digest ? undefined : bookmark?.position,
+      onRecovery: (message) => { recovery = message; },
+      onPositionChange: (position) => {
+        if (generation !== readerGeneration) return;
+        normalStudy.save({ version: 1, sourceId: document.fileId, gameId: document.gameId, sourceName: source.name, sourceSize: source.size, digest, position });
+        if (recovery) normalStudy.message = `${recovery} ${normalStudy.message}`;
+        recovery = "";
+        renderStudyNotice();
+      },
       onBack: browseLibrary,
       onNavigate: (nextId) => {
         if (studySourceId === null) return;
@@ -406,6 +474,7 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
       return;
     }
     activeReader = reader;
+    renderStudyNotice();
     returnStudy.hidden = false;
     if (!readerPanel.hidden) readerPanel.querySelector<HTMLButtonElement>(".reader-back")?.focus();
     await library.rememberGame(document.fileId, document.gameId);
@@ -416,6 +485,8 @@ async function loadGame(gameId: number, generation: number): Promise<void> {
   } catch (error) {
     if (generation !== readerGeneration || selectedGameId !== gameId) return;
     const message = error instanceof Error ? error.message : String(error);
+    normalStudy.message = `Could not resume the saved game: ${message}. Your Library is still available; choose a game to recover.`;
+    renderStudyNotice();
     readerPanel.replaceChildren(
       h("div", { class: "reader-error", role: "alert" }, `Could not open Game record: ${message}`),
       h(
@@ -435,6 +506,7 @@ function closeReader(): void {
   readerGeneration += 1;
   activeReader?.cleanup();
   activeReader = null;
+  renderStudyNotice();
   setReaderMode(false);
   renderGames();
 }
@@ -458,7 +530,8 @@ function continueSource(sourceId: number, gameId: number): void {
     const source = library.sources.find((candidate) => candidate.id === sourceId);
     const bookmark = source?.resumeBookmark;
     if (library.activeSourceId !== sourceId || !bookmark || bookmark.gameId !== gameId) return;
-    openGame(bookmark.gameId);
+    const exact = normalStudy.value;
+    openGame(bookmark.gameId, exact?.sourceId === sourceId && exact.gameId === gameId ? exact : undefined);
   });
 }
 
@@ -474,6 +547,7 @@ function setReaderMode(readerOpen: boolean): void {
   sourcePanel.hidden = readerOpen;
   recordsPanel.hidden = readerOpen;
   readerPanel.hidden = !readerOpen;
+  renderStudyNotice();
 }
 
 function loading(message: string): HTMLElement {

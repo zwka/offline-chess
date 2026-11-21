@@ -266,9 +266,9 @@ function isPersistedMultiSource(value: unknown): value is MobilePersistedMultiSo
 }
 
 function isSource(value: unknown): value is MobileSourceRecord {
-  if (!isSourceFields(value)) return false;
-  const source = value as MobileSourceRecord;
-  return source.resumeBookmark === null || isResumeBookmark(source.resumeBookmark);
+  // Bookmarks are optional activity, not content integrity. The Library repairs
+  // malformed/missing references and reports recovery without rejecting PGNs.
+  return isSourceFields(value);
 }
 
 function isMultiSource(value: unknown): value is Omit<MobileSourceRecord, "resumeBookmark"> {
@@ -284,12 +284,6 @@ function isSourceFields(value: unknown): value is Record<string, unknown> {
   return isSafeNonNegativeInteger(value.progress.bytesDone) &&
     isSafeNonNegativeInteger(value.progress.bytesTotal) &&
     isSafeNonNegativeInteger(value.progress.gamesFound);
-}
-
-function isResumeBookmark(value: unknown): value is NonNullable<MobileSourceRecord["resumeBookmark"]> {
-  return isRecord(value) &&
-    isSafePositiveInteger(value.sourceId) &&
-    isSafePositiveInteger(value.gameId);
 }
 
 function isLegacySource(value: unknown): value is MobileLegacySourceRecord {

@@ -1,6 +1,6 @@
 # Resume PGN Reader at the exact move and variation
 
-Status: ready-for-agent
+Status: claimed
 GitHub issue: https://github.com/zwka/offline-chess/issues/8
 
 ## Parent
