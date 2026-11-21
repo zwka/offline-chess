@@ -6,8 +6,8 @@ host.innerHTML = `<button type="button" aria-haspopup="dialog">Offline status: C
   <dialog aria-labelledby="suite-offline-title">
     <h2 id="suite-offline-title">Offline readiness</h2>
     <p data-connectivity></p><p data-result aria-live="polite"></p>
-    <p>Tool resources include the sample puzzle index only.</p>
-    <section data-offline-database><p>Full puzzle database: not checked. Tool readiness does not establish full-database readiness.</p></section>
+    <p data-offline-sample>Sample puzzle index: checking.</p>
+    <section data-offline-database aria-live="polite"></section>
     <p>Checked locally now; your browser can remove stored resources later. Recheck before leaving connectivity.</p>
     <details><summary>Required resource details</summary><p data-count></p><ul data-missing></ul></details>
     <button type="button" data-recheck>Recheck resources</button>
@@ -20,6 +20,7 @@ const dialog = host.querySelector("dialog");
 const labels = { checking: "Checking", ready: "Tools ready", incomplete: "Tools incomplete", unavailable: "Unavailable", failure: "Check failed" };
 let generation = 0;
 let installationFailed = false;
+let databaseWasAvailable = false;
 function show(result) {
   button.textContent = `Offline status: ${labels[result.state]}`;
   host.querySelector("[data-connectivity]").textContent = `${navigator.onLine ? "Online" : "Offline"} — connectivity is not offline readiness`;
@@ -36,6 +37,11 @@ function show(result) {
     item.textContent = path;
     return item;
   }));
+  host.querySelector("[data-offline-sample]").textContent = `Sample puzzle index: ${result.sample || ({ ready: "available", incomplete: "incomplete" }[result.state]) || result.state}. Included in required Tool resources; separate from the full database.`;
+  const database = result.database || { state: result.state === "checking" ? "checking" : result.state === "unavailable" ? "unavailable" : "failure", reason: "Full database availability is not established by Tool readiness." };
+  if (database.state === "available") databaseWasAvailable = true;
+  const lost = databaseWasAvailable && database.state !== "available" && database.state !== "checking";
+  host.querySelector("[data-offline-database]").textContent = `Full puzzle database: ${{ checking: "checking", available: "available offline", unavailable: "unavailable", incomplete: "incomplete", failure: "check failed" }[database.state] || "check failed"}. ${database.reason || "Checking cached full database resources locally…"} ${lost ? "Previously available offline data is no longer verified. An update, incomplete caching, or browser storage removal may have made it unavailable." : ""} Checking does not download the optional database.`;
   // Extension boundary for optional database details (#16), not a download trigger.
   host.dispatchEvent(new CustomEvent("suite:tools-verified", { bubbles: true, detail: result }));
 }
@@ -43,6 +49,16 @@ async function verify() {
   const id = ++generation;
   show({ state: "checking" });
   if (!navigator.serviceWorker || !window.caches) return show({ state: "unavailable" });
+  // Do not verify the outgoing worker while a replacement is installing or
+  // waiting. Its old cache cannot establish readiness for the incoming build.
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (id !== generation) return;
+    if (registration?.installing || registration?.waiting) return;
+  } catch {
+    if (id === generation) show({ state: "failure" });
+    return;
+  }
   const controller = navigator.serviceWorker.controller;
   if (!controller) {
     try {
@@ -70,12 +86,16 @@ host.querySelector("[data-recheck]").addEventListener("click", verify);
 for (const event of ["online", "offline", "focus", "pageshow"]) window.addEventListener(event, verify);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) verify(); });
 if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener("message", event => {
+    if (event.data?.type === "suite:database-cache-changed") verify();
+  });
   navigator.serviceWorker.addEventListener("controllerchange", verify);
   navigator.serviceWorker.register("/sw.js").then(registration => {
     const watchInstallation = () => {
       const worker = registration.installing;
       if (!worker) return;
       installationFailed = false;
+      ++generation; // Discard replies already in flight from the outgoing build.
       show({ state: "checking" });
       worker.addEventListener("statechange", () => {
         if (worker.state === "redundant") installationFailed = true;

@@ -134,6 +134,15 @@ function downloadJson(filename: string, value: unknown) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// The demo marker is optional metadata, never a prerequisite for opening IndexedDB content.
+function demoWasSeeded(): boolean {
+  try { return window.localStorage.getItem("woodpecker-demo-seeded") === "true"; } catch { return false; }
+}
+
+function markDemoSeeded() {
+  try { window.localStorage.setItem("woodpecker-demo-seeded", "true"); } catch { /* IndexedDB remains authoritative. */ }
+}
+
 function ThemeControl({ theme, onToggle }: { theme: ThemeChoice; onToggle: () => void }) {
   const nextLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
   return (
@@ -187,18 +196,24 @@ function SetCard({
         <div><span>Score</span><strong>{score ? `${score.firstTrySolved}/${score.total}` : "-"}</strong></div>
       </div>
       {activeRun && activeScore && (
-        <div className="active-run-line"><span className="pulse-dot" /> Active / {activeRun.currentPuzzleIndex + 1} of {activeRun.results.length} / {activeScore.firstTrySolved} scored</div>
+        <div className="saved-run-info">
+          <p className="active-run-line">Active / {activeRun.currentPuzzleIndex + 1} of {activeRun.results.length} / {activeScore.firstTrySolved} scored</p>
+          <p>Puzzle {activeRun.currentPuzzleIndex + 1} of {activeRun.results.length} · {activeRun.currentPuzzle.kind === "solution-revealed" ? "Solution revealed" : activeRun.currentPuzzle.kind === "error" ? "First try missed" : activeRun.currentPuzzle.kind === "completed-after-error" ? "Completed after error" : "In progress"}</p>
+          <p>{activeScore.firstTrySolved} scored · {activeRun.currentPuzzle.retryCount} retries · Active solving time: {formatActiveTime(activeRun.activeTimeMs)}</p>
+          <p>Timing stays paused until you choose Resume. Your current move and Puzzle Result are retained.</p>
+        </div>
       )}
       <div className="set-card-actions">
         {record.archived ? (
           <button className="primary-button compact" type="button" onClick={onRestore} disabled={isUpdating} aria-label={`Restore ${record.set.name}`}><RotateCcw size={15} /> Restore</button>
         ) : activeRun ? (
-          <button className="primary-button compact" type="button" onClick={onResume}><Play size={15} /> Resume</button>
+          <button className="primary-button compact" type="button" onClick={onResume} disabled={isUpdating}><Play size={15} /> Resume</button>
         ) : (
-          <button className="primary-button compact" type="button" onClick={onStart}><Play size={15} /> Start new Run</button>
+          <button className="primary-button compact" type="button" onClick={onStart} disabled={isUpdating}><Play size={15} /> Start new Run</button>
         )}
         {latestRun && <span className="last-run">Last run {formatDate(latestRun.startedAt)}</span>}
       </div>
+      {!record.archived && activeRun && <button className="secondary-button fresh-button" type="button" onClick={onStart} disabled={isUpdating}>Start fresh</button>}
       <button className="danger-link" type="button" onClick={onDelete} disabled={isUpdating}><Trash2 size={13} /> Delete set and history</button>
     </article>
   );
@@ -219,6 +234,7 @@ function App() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [historyRunId, setHistoryRunId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [startingSetId, setStartingSetId] = useState<string | null>(null);
   const [updatingSetId, setUpdatingSetId] = useState<string | null>(null);
@@ -230,28 +246,29 @@ function App() {
   const setInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const runSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const navigatingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
       try {
         let next = await loadTrainerData();
-        const demoSeeded = window.localStorage.getItem("woodpecker-demo-seeded") === "true";
+        const demoSeeded = demoWasSeeded();
         if (next.sets.length === 0 && !demoSeeded) {
           const response = await fetch(`${import.meta.env.BASE_URL}demo-set.json`);
           if (!response.ok) throw new Error("Demo set unavailable");
           const demo = await normalizePuzzleSet(parsePuzzleSet(await response.json()));
           await savePuzzleSet(demo);
           next = { sets: [{ set: demo, archived: false }], runs: [] };
-          window.localStorage.setItem("woodpecker-demo-seeded", "true");
+          markDemoSeeded();
         } else if (next.sets.length > 0) {
-          window.localStorage.setItem("woodpecker-demo-seeded", "true");
+          markDemoSeeded();
         }
         try {
           const handoff = await consumePendingPuzzleSetHandoff(next);
           if (handoff) {
             next = handoff.data;
-            window.localStorage.setItem("woodpecker-demo-seeded", "true");
+            markDemoSeeded();
             if (!cancelled) {
               setData(next);
               setSelectedRunId(handoff.run.id);
@@ -264,7 +281,7 @@ function App() {
         }
         if (!cancelled) setData(next);
       } catch {
-        if (!cancelled) setNotice("Local storage could not be opened. The Trainer needs browser storage to keep Run history.");
+        if (!cancelled) setStorageWarning("Local storage could not be opened. Reload to try again. The Trainer needs browser storage to keep Run history.");
       }
     }
     void bootstrap();
@@ -302,11 +319,58 @@ function App() {
         ),
       } : current);
     }).catch(() => {
-      setNotice("The active solving time could not be saved locally.");
+      setStorageWarning((current) => current ?? "The active solving time could not be saved locally. Time since the last successful checkpoint may be lost if you leave. Export a backup of saved history from the Library.");
     });
   }
 
   const withActiveTime = useActiveRunTimer(activeRun, view === "solve", persistActiveTime);
+
+  // Same-origin Suite links (including a switcher mounted outside React) checkpoint
+  // before leaving. Pagehide is a fallback, not the primary persistence mechanism.
+  async function prepareToNavigate(): Promise<boolean> {
+    if (isPersisting || startingSetId || navigatingRef.current) {
+      setNotice("Please wait for the current action to finish saving before leaving.");
+      return false;
+    }
+    if (!activeRun) return true;
+    navigatingRef.current = true;
+    const snapshot = withActiveTime(activeRun, true);
+    setView("library");
+    setBoardPlayback(null);
+    setPendingPromotion(null);
+    try {
+      await queueRunSave(snapshot);
+      await runSaveQueueRef.current;
+      return true;
+    } catch {
+      setStorageWarning("Navigation paused: the current Run time could not be saved locally. Your previous saved Puzzle state is intact. Resume and retry when browser storage is available, or export saved history from the Library.");
+      return false;
+    } finally {
+      navigatingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    const onLink = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.hasAttribute("download") || (anchor.target && anchor.target !== "_self")) return;
+      const url = new URL(anchor.href);
+      if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search)) return;
+      event.preventDefault();
+      void prepareToNavigate().then((saved) => { if (saved) location.assign(url.href); });
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      // A back/forward-cache return is ordinary entry, not an explicit Resume.
+      if (event.persisted) { setView("library"); setBoardPlayback(null); }
+    };
+    document.addEventListener("click", onLink);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("click", onLink);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  });
 
   useEffect(() => {
     if (activeRun?.currentPuzzle.kind === "solution-revealed") solutionLineRef.current?.focus();
@@ -340,6 +404,7 @@ function App() {
     setIsPersisting(true);
     try {
       await queueRunSave(timedRun);
+      setStorageWarning(null);
       if (options.playback) {
         setBoardPlayback({
           ...options.playback,
@@ -356,7 +421,7 @@ function App() {
       } : current);
       if (timedRun.status === "completed" && !options.playback) setView("summary");
     } catch {
-      setNotice("The latest action could not be saved locally. Your previous state is still intact.");
+      setStorageWarning("The latest action could not be saved locally and was not applied. Your previous Puzzle state is still intact. Try again before leaving.");
     } finally {
       setIsPersisting(false);
     }
@@ -364,15 +429,18 @@ function App() {
 
   async function startRun(set: PuzzleSet) {
     if (!data || startingSetId) return;
+    if (data.runs.some((run) => run.setId === set.id && run.status === "active") &&
+      !window.confirm(`Start fresh with ${set.name}? The unfinished Run will become an Abandoned Run and cannot be resumed. Its results stay in history. Your Puzzle Sets and completed history are retained.`)) return;
     setStartingSetId(set.id);
     try {
-      const started = await startRunAtomically(set);
-      setData({ ...data, runs: started.runs });
+      const started = await queueRunOperation(() => startRunAtomically(set));
+      setData((current) => current ? { ...current, runs: started.runs } : current);
       setSelectedRunId(started.run.id);
       setView("solve");
       setNotice(null);
+      setStorageWarning(null);
     } catch {
-      setNotice("The new Run could not be started locally.");
+      setStorageWarning("The new Run could not be saved locally. Your existing Run and history are unchanged.");
     } finally {
       setStartingSetId(null);
     }
@@ -571,7 +639,7 @@ function App() {
                 onResume={() => { const run = activeRunForSet(record.set.id); if (run) resumeRun(run); }}
                 onArchive={() => void archiveSet(record.set.id)}
                 onRestore={() => void updateArchive(record.set.id, false)}
-                isUpdating={updatingSetId !== null}
+                isUpdating={updatingSetId !== null || startingSetId !== null || isPersisting}
                 onDelete={() => void removeSet(record.set.id)}
               />
             ))}
@@ -727,7 +795,7 @@ function App() {
   return (
     <div className="app-shell trainer-shell">
       <header className="topbar">
-        <div className="brand-lockup"><div className="brand-mark">W</div><div><div className="brand-name">Woodpecker</div><div className="brand-section">Trainer</div></div></div>
+        <a className="brand-lockup" href="/" aria-label="Offline Chess"><svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true"><use href="/identity/symbols.svg#open-board" /></svg><span><span className="brand-name">Offline Chess</span><span className="brand-section">Woodpecker Trainer</span></span></a>
         <nav className="app-nav" aria-label="Primary navigation">
           <button className={view === "library" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("library")} disabled={isPersisting || Boolean(boardPlayback)}><Library size={15} /> Library</button>
           <button className={view === "history" ? "nav-button active" : "nav-button"} type="button" onClick={() => setView("history")} disabled={isPersisting || Boolean(boardPlayback)}><History size={15} /> History</button>
@@ -735,7 +803,8 @@ function App() {
         <div className="topbar-actions"><a className="quiet-link" href={GENERATOR_URL}>Generator →</a><ThemeControl theme={theme.theme} onToggle={theme.toggleTheme} /></div>
       </header>
       {notice && <button className="global-notice" type="button" onClick={() => setNotice(null)}>{notice}<span aria-hidden="true">x</span></button>}
-      {!data ? <main className="loading-screen"><RefreshCw className="spin" size={22} /><span>Opening local Trainer storage...</span></main> : view === "library" || view === "archive" ? renderLibrary() : view === "solve" ? renderSolve() : view === "summary" ? renderSummary() : renderHistory()}
+      {storageWarning && <div className="storage-warning" role="alert">{storageWarning}</div>}
+      {!data ? <main className="loading-screen">{storageWarning ? <span>Saved activity is unavailable. No Run has been started.</span> : <><RefreshCw className="spin" size={22} /><span>Opening local Trainer storage...</span></>}</main> : view === "library" || view === "archive" ? renderLibrary() : view === "solve" ? renderSolve() : view === "summary" ? renderSummary() : renderHistory()}
       <footer className="app-footer"><span>Woodpecker / local-first chess practice</span><span>Pieces: Cburnett, CC BY-SA 3.0 / <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard_transparent" target="_blank" rel="noreferrer">source notice</a></span></footer>
     </div>
   );
