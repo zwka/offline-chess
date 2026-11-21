@@ -13,5 +13,3 @@ export function solutionStudyPgn(puzzle: { fen: string; moves: string[] }): stri
   for (const move of puzzle.moves.slice(1)) apply(game, move);
   return game.pgn();
 }
-
-export const SOLUTION_STUDY_KEY = "offline-chess.reader.solution-study.v1";

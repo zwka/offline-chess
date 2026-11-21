@@ -1,11 +1,6 @@
 import { hydrateGame } from "../hydration.js";
 import { renderMobileReader } from "./reader.js";
-import type { StudyPosition } from "./study-bookmark.js";
-
-const KEY = "offline-chess.reader.solution-study.v1";
-type Context = { version: 1; runId: string; setId: string; puzzleId: string; index: number; pgn: string; line: string; position?: StudyPosition };
-type OriginRun = { setId: string; status: string; currentPuzzleIndex: number | null; currentPuzzle?: { kind: string }; results: Array<{ puzzleId: string; status: string; completion?: string }> };
-type OriginSet = { set: { puzzles: Array<{ id: string; fen: string; moves: string[] }> } };
+import { SOLUTION_STUDY_KEY as KEY, decodeSolutionStudy, encodeSolutionStudy, verifySolutionStudyOrigin, type SolutionStudyContext } from "../../../../shared/solution-study.js";
 
 export function solutionStudyLink(): HTMLAnchorElement | null {
   try {
@@ -15,34 +10,6 @@ export function solutionStudyLink(): HTMLAnchorElement | null {
     link.textContent = "Resume Puzzle Solution Study";
     return link;
   } catch { return null; }
-}
-
-/** Read-only boundary: Reader must never create, score, resume, or checkpoint a Run. */
-async function verifyOrigin(context: Context): Promise<void> {
-  const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open("offline-woodpecker-trainer", 1);
-    request.onupgradeneeded = () => { request.transaction?.abort(); };
-    request.onerror = () => reject(new Error("The originating Trainer storage is missing or unavailable."));
-    request.onsuccess = () => resolve(request.result);
-  });
-  try {
-    const tx = db.transaction(["runs", "puzzle-sets"], "readonly");
-    const read = <T>(store: string, id: string): Promise<T | undefined> => new Promise((resolve, reject) => {
-      const request = tx.objectStore(store).get(id);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const [run, record] = await Promise.all([read<OriginRun>("runs", context.runId), read<OriginSet>("puzzle-sets", context.setId)]);
-    const puzzle = record?.set?.puzzles?.[context.index];
-    const result = run?.results?.[context.index];
-    if (!run || run.setId !== context.setId || !puzzle || puzzle.id !== context.puzzleId || result?.puzzleId !== puzzle.id || JSON.stringify([puzzle.fen, puzzle.moves]) !== context.line) {
-      throw new Error("The originating Run or Puzzle is missing, deleted, or changed.");
-    }
-    if (!(result.status === "first-try-solved" || (result.status === "failed" && result.completion === "completed") ||
-      (run.status === "active" && run.currentPuzzleIndex === context.index && run.currentPuzzle?.kind === "solution-revealed"))) {
-      throw new Error("Solve the Puzzle or explicitly reveal its solution in Trainer before studying it.");
-    }
-  } finally { db.close(); }
 }
 
 export async function openSolutionStudy(): Promise<void> {
@@ -63,11 +30,10 @@ export async function openSolutionStudy(): Promise<void> {
   normal.textContent = "Ordinary PGN study / Library";
   controls.append(label, status, normal);
   app.append(controls, panel);
-  let context: Context;
+  let context: SolutionStudyContext;
   try {
-    context = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (!context || context.version !== 1 || typeof context.runId !== "string" || typeof context.setId !== "string" || typeof context.puzzleId !== "string" || !Number.isInteger(context.index) || context.index < 0 || typeof context.pgn !== "string" || typeof context.line !== "string") throw new Error("No valid saved Puzzle Solution Study is available.");
-    await verifyOrigin(context);
+    context = decodeSolutionStudy(localStorage.getItem(KEY));
+    await verifySolutionStudyOrigin(context);
     const payload = hydrateGame(new TextEncoder().encode(context.pgn));
     if (payload.warnings.length) throw new Error("The supplied solution could not be read safely.");
     const back = document.createElement("a");
@@ -84,7 +50,7 @@ export async function openSolutionStudy(): Promise<void> {
       onRecovery: (message) => { status.textContent = message; },
       onPositionChange: (position) => {
         context.position = position;
-        try { localStorage.setItem(KEY, JSON.stringify(context)); }
+        try { localStorage.setItem(KEY, encodeSolutionStudy(context)); }
         catch { status.textContent = "This solution move is page-only: it could not be saved. Your ordinary PGN study and Run are unchanged."; }
       },
     });
@@ -93,7 +59,7 @@ export async function openSolutionStudy(): Promise<void> {
     // Separate from normal Study: retry only this solution's current position.
     window.addEventListener("offline-chess:before-navigate", (event) => {
       try {
-        localStorage.setItem(KEY, JSON.stringify(context));
+        localStorage.setItem(KEY, encodeSolutionStudy(context));
         status.textContent = "Solution position saved on this device. Your ordinary PGN study and Run are unchanged. Trainer timing is paused.";
       } catch {
         event.preventDefault();

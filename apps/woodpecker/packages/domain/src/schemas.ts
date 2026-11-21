@@ -81,6 +81,7 @@ export const puzzleResultSchema = z.discriminatedUnion("status", [
   puzzleResultBaseSchema.extend({
     status: z.literal("failed"),
     completion: z.enum(["pending", "completed", "skipped"]),
+    solutionRevealed: z.boolean().optional(),
   }),
 ]);
 
@@ -162,9 +163,16 @@ const legacyRunSchema = z.union([
   }),
 ]);
 
-export const runSchema = z.union([currentRunSchema, legacyRunSchema]).transform((run) => (
-  run.schemaVersion === 2 ? run : currentRunSchema.parse({ ...run, schemaVersion: 2 })
-));
+export const runSchema = z.union([currentRunSchema, legacyRunSchema]).transform((value) => {
+  const run = value.schemaVersion === 2 ? value : currentRunSchema.parse({ ...value, schemaVersion: 2 });
+  // Older records only prove revelation while it is still the current state.
+  // Never infer it from a skipped Failure (which can also follow a wrong move).
+  if (run.status === "active" && run.currentPuzzle.kind === "solution-revealed") {
+    return { ...run, results: run.results.map((result, index) =>
+      index === run.currentPuzzleIndex && result.status === "failed" ? { ...result, solutionRevealed: true } : result) };
+  }
+  return run;
+});
 
 const trainerBackupSetSchema = z.object({
   set: puzzleSetSchema,
