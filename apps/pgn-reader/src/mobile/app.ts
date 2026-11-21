@@ -8,6 +8,7 @@ import {
 } from "./library.js";
 import { renderMobileReader, type MobileReaderHandle } from "./reader.js";
 import { NormalStudyBookmark, type StudyBookmark } from "./study-bookmark.js";
+import { openSolutionStudy, solutionStudyLink } from "./solution-study.js";
 
 const importPanel = getElement<HTMLElement>("import-panel");
 const sourcePanel = getElement<HTMLElement>("source-panel");
@@ -36,6 +37,8 @@ const previousPage = getElement<HTMLButtonElement>("previous-page");
 const nextPage = getElement<HTMLButtonElement>("next-page");
 const themeToggle = getElement<HTMLButtonElement>("theme-toggle");
 const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+const solutionLink = solutionStudyLink();
+if (solutionLink) libraryHeading.append(solutionLink);
 
 type Theme = "light" | "dark";
 const THEME_KEY = "offline-chess.theme.v1";
@@ -213,6 +216,8 @@ setReaderMode(false);
 renderSourceList(library.sources);
 renderSource(library.source);
 renderGames();
+
+if (new URLSearchParams(location.search).get("solution") === "1") void openSolutionStudy();
 
 function renderSourceList(sources: MobileSourceRecord[]): void {
   sourceListSummary.textContent = sources.length === 0
