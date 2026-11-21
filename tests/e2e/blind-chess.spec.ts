@@ -46,6 +46,11 @@ test.describe("Blind Chess Tool (/blind-chess/)", () => {
         await expect(brand).toContainText("Offline Chess");
         for (const drill of ["Square Colors", "Same Color", "Coordinates", "Diagonals", "Quadrant", "Knight"]) {
           await page.getByRole("button", { name: new RegExp(drill) }).click();
+          const replace = page.getByRole("button", { name: "Start fresh", exact: true });
+          if (await replace.isVisible()) {
+            page.once("dialog", dialog => dialog.accept());
+            await replace.click();
+          }
           await expect(page.getByRole("heading", { name: drill, exact: true })).toBeVisible();
           await expect(page.getByRole("region", { name: "Drill instructions" })).toContainText("How to play");
           await page.clock.runFor(65_000);
@@ -69,6 +74,8 @@ test.describe("Blind Chess Tool (/blind-chess/)", () => {
             const square = page.getByRole("button", { name: "Select square a8", exact: true });
             await page.getByRole("button", { name: /Switch to .* mode/ }).focus();
             await tabToMainControl(page);
+            await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeFocused();
+            await page.keyboard.press("Tab");
             await expect(square).toBeFocused();
             await page.keyboard.press("Enter");
           } else if (drill === "Square Colors") {

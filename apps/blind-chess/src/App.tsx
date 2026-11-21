@@ -53,6 +53,7 @@ import type {
   TrainingModule
 } from "./domain";
 import { clearAttemptHistory, readAttempts, saveAttempt } from "./storage";
+import { clearActivity, readActivity, saveActivity, type Activity } from "./activity";
 import type { ThemePreference } from "./preferences";
 import { useThemePreference } from "./useThemePreference";
 
@@ -359,27 +360,53 @@ function incorrectAnswerMessage(round: ActiveRound): string {
 }
 
 function App() {
+  const [loaded] = useState(readActivity);
+  const initial = loaded.status === "saved" ? loaded.activity : null;
   const [screen, setScreen] = useState<Screen>("home");
-  const [selectedTraining, setSelectedTraining] = useState<TrainingModule>("square-colors");
+  const [selectedTraining, setSelectedTraining] = useState<TrainingModule>(initial && initial.kind !== "finished" ? initial.training : "square-colors");
   const [historyTraining, setHistoryTraining] = useState<TrainingModule>("square-colors");
-  const [round, setRound] = useState<RoundState>({ kind: "idle" });
+  const [round, setRound] = useState<RoundState>(initial && initial.kind !== "preparation" ? initial : { kind: "idle" });
   const roundRef = useRef(round);
+  const [activity, setActivity] = useState<Activity | null>(initial);
+  const activityRef = useRef(activity);
+  const [choice, setChoice] = useState(initial !== null && initial.kind !== "finished");
+  const [activityWarning, setActivityWarning] = useState(loaded.status === "invalid"
+    ? "Saved activity is invalid and cannot be resumed. Completed history is still available."
+    : loaded.status === "unavailable" ? "Saved activity storage is unavailable. Progress may be lost when you leave." : "");
   const [attempts, setAttempts] = useState<Attempt[]>(readAttempts);
   const { preference: themePreference, setPreference: selectTheme } = useThemePreference();
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [storageError, setStorageError] = useState(false);
 
+  const checkpoint = (next: Activity | RoundState): boolean => {
+    const saved = saveActivity(next);
+    setActivityWarning(saved ? "" : "Progress could not be saved on this device. Stay here and retry before leaving; leaving or reloading may lose progress.");
+    return saved;
+  };
+
+  const remember = (next: Activity) => {
+    activityRef.current = next;
+    setActivity(next);
+    checkpoint(next);
+  };
+
   const updateRound = (next: RoundState) => {
     roundRef.current = next;
     setRound(next);
+    if (next.kind !== "idle") {
+      const snapshot = next.kind === "running" ? pauseRound(next, Date.now()) as Activity : next;
+      activityRef.current = snapshot;
+      setActivity(snapshot);
+      checkpoint(next);
+    }
   };
 
   const finishExpiredAttempt = (current: RoundState, now: number): void => {
     const completed = finishRound({
       state: current,
       now,
-      id: crypto.randomUUID(),
+      id: current.kind === "running" || current.kind === "paused" ? current.activityId ?? crypto.randomUUID() : crypto.randomUUID(),
       completedAt: new Date(now).toISOString()
     });
     if (completed.kind !== "finished") {
@@ -395,23 +422,49 @@ function App() {
       const current = roundRef.current;
       const now = Date.now();
 
+      if (document.hidden && activityRef.current && activityRef.current.kind !== "finished") setChoice(true);
+
       if (document.hidden && current.kind === "running") {
         if (remainingMs(current, now) === 0) {
           finishExpiredAttempt(current, now);
           return;
         }
         updateRound(pauseRound(current, now));
-      } else if (!document.hidden && current.kind === "paused") {
-        updateRound(resumeRound(current, now));
+        setChoice(true);
       }
     };
 
+    const pauseAndSave = () => {
+      handleVisibility();
+      const current = roundRef.current;
+      if (current.kind === "running") {
+        if (remainingMs(current, Date.now()) === 0) finishExpiredAttempt(current, Date.now());
+        else updateRound(pauseRound(current, Date.now()));
+      }
+      if (activityRef.current?.kind !== "finished" && activityRef.current !== null) setChoice(true);
+      return activityRef.current === null || checkpoint(activityRef.current);
+    };
+    const navigation = (event: Event) => { if (!pauseAndSave()) event.preventDefault(); };
+    const pageHide = () => { pauseAndSave(); };
+    const linkClick = (event: MouseEvent) => {
+      const link = (event.target as Element).closest?.("a[href]");
+      if (link && !pauseAndSave()) event.preventDefault();
+    };
+
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", pageHide);
+    window.addEventListener("offline-chess:before-navigate", navigation);
+    document.addEventListener("click", linkClick, true);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", pageHide);
+      window.removeEventListener("offline-chess:before-navigate", navigation);
+      document.removeEventListener("click", linkClick, true);
+    };
   }, []);
 
   useEffect(() => {
-    if (screen !== "round" || round.kind !== "running") {
+    if (screen !== "round" || choice || round.kind !== "running") {
       return;
     }
 
@@ -430,16 +483,19 @@ function App() {
 
       if (left === 0) {
         finishExpiredAttempt(current, now);
+      } else {
+        // Checkpoint time while visible as well as every answer/prompt change.
+        checkpoint(current);
       }
     };
 
     tick();
     const timer = window.setInterval(tick, 100);
     return () => window.clearInterval(timer);
-  }, [round.kind, screen]);
+  }, [round.kind, screen, choice]);
 
   useEffect(() => {
-    if (screen !== "round" || round.kind !== "running" || round.feedback === null) {
+    if (screen !== "round" || choice || round.kind !== "running" || round.feedback === null) {
       return;
     }
 
@@ -468,7 +524,7 @@ function App() {
     }, 430);
 
     return () => window.clearTimeout(timeout);
-  }, [round, screen]);
+  }, [round, screen, choice]);
 
   useEffect(() => {
     if (round.kind !== "finished") {
@@ -478,6 +534,12 @@ function App() {
     const saved = saveAttempt(round.attempt);
     setAttempts(saved.attempts);
     setStorageError(!saved.saved);
+    if (!saved.saved) setActivityWarning("This completed Attempt could not be saved. It is kept here for retry; do not start a new activity until saving succeeds.");
+    else setActivityWarning("");
+    if (saved.saved && clearActivity()) {
+      activityRef.current = null;
+      setActivity(null);
+    }
   }, [round]);
 
   const prepareAttempt = (training: TrainingModule) => {
@@ -508,14 +570,54 @@ function App() {
       }
     }
 
-    updateRound(ready);
+    updateRound({ ...ready, activityId: crypto.randomUUID() });
     setSecondsLeft(60);
     setStorageError(false);
     setScreen("round");
   };
 
   const selectTraining = (training: TrainingModule) => {
+    const pending = activityRef.current;
+    if (pending?.kind === "finished") {
+      const saved = saveAttempt(pending.attempt);
+      setAttempts(saved.attempts);
+      setStorageError(!saved.saved);
+      if (!saved.saved) {
+        setActivityWarning("The completed Attempt is not saved yet. Retry saving before starting another activity; your history has not been replaced.");
+        return;
+      }
+    }
     setSelectedTraining(training);
+    if (activityRef.current && activityRef.current.kind !== "finished") {
+      setChoice(true);
+    } else {
+      remember({ kind: "preparation", training });
+      setChoice(false);
+    }
+    setScreen("preparation");
+  };
+
+  const resumeActivity = () => {
+    const saved = activityRef.current;
+    if (!saved || saved.kind === "finished") return;
+    setSelectedTraining(saved.training);
+    setChoice(false);
+    if (saved.kind === "preparation") { setScreen("preparation"); return; }
+    const next = saved.kind === "paused" ? resumeRound(saved, Date.now()) : saved;
+    setSecondsLeft(Math.ceil(remainingMs(next, Date.now()) / 1000));
+    updateRound(next);
+    setScreen("round");
+  };
+
+  const startFresh = () => {
+    if (!window.confirm("Replace this unfinished Blind Chess activity? Its prompt, answers and remaining time will be discarded. Completed Attempt history and personal bests will be kept.")) return;
+    const fresh: Activity = { kind: "preparation", training: selectedTraining };
+    if (!saveActivity(fresh)) { setActivityWarning("The saved activity could not be replaced. It has been kept; try again when storage is available."); return; }
+    updateRound({ kind: "idle" });
+    activityRef.current = fresh;
+    setActivity(fresh);
+    setActivityWarning("");
+    setChoice(false);
     setScreen("preparation");
   };
 
@@ -585,7 +687,7 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (screen !== "round" || event.ctrlKey || event.metaKey || event.altKey) {
+      if (screen !== "round" || choice || event.ctrlKey || event.metaKey || event.altKey) {
         return;
       }
 
@@ -613,13 +715,22 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [screen]);
+  }, [screen, choice]);
 
   const clearHistory = () => {
     if (!window.confirm("Clear all saved attempts on this device?")) {
       return;
     }
 
+    // Remove any completion receipt first, so a reload cannot recreate cleared history.
+    if (activityRef.current?.kind === "finished" && !clearActivity()) {
+      setStorageError(true);
+      return;
+    }
+    if (activityRef.current?.kind === "finished") {
+      activityRef.current = null;
+      setActivity(null);
+    }
     if (clearAttemptHistory()) {
       setAttempts([]);
       setStorageError(false);
@@ -634,8 +745,12 @@ function App() {
       roundRef.current.kind === "running" ||
       roundRef.current.kind === "paused"
     ) {
-      updateRound({ kind: "idle" });
+      const current = roundRef.current;
+      if (current.kind === "running" && remainingMs(current, Date.now()) === 0) finishExpiredAttempt(current, Date.now());
+      else if (current.kind === "running") updateRound(pauseRound(current, Date.now()));
+      setChoice(true);
     }
+    if (activityRef.current && activityRef.current.kind !== "finished") setChoice(true);
     setScreen("home");
   };
 
@@ -665,6 +780,29 @@ function App() {
           <ThemeControl preference={themePreference} onChange={selectTheme} />
         </nav>
       </header>
+
+      {activityWarning && <div className="storage-warning page-width" role="alert">{activityWarning}
+        {activity && <button className="text-button" type="button" onClick={() => {
+          const current = activityRef.current;
+          if (!current) return;
+          if (current.kind === "finished") {
+            const saved = saveAttempt(current.attempt);
+            setAttempts(saved.attempts);
+            setStorageError(!saved.saved);
+            if (!saved.saved) return;
+          }
+          checkpoint(roundRef.current.kind === "running" ? roundRef.current : current);
+        }}>Retry save</button>}
+      </div>}
+      {choice && activity && activity.kind !== "finished" && screen !== "history" && (
+        <section className="preparation-page page-width" aria-label="Saved activity">
+          <h2>Continue {trainingTitle(activity.training)}?</h2>
+          <p>{activity.kind === "preparation" ? "Continue your untimed preparation. No clock has started." : activity.kind === "ready" ? "Your first prompt is ready. Timing still begins with your first answer." : `${activity.answered} answered · ${activity.correct} correct · ${(activity.remainingMs / 1000).toFixed(1)} seconds remaining. The clock is paused.`}</p>
+          <button className="primary-button" type="button" onClick={resumeActivity}>Resume</button>{" "}
+          <button className="secondary-button" type="button" onClick={startFresh}>Start fresh</button>
+          <p>Start fresh replaces only unfinished activity, not completed history or personal bests.</p>
+        </section>
+      )}
 
       {screen === "home" && (
         <main className="training-hub page-width">
@@ -700,7 +838,7 @@ function App() {
         </main>
       )}
 
-      {screen === "preparation" && (
+      {screen === "preparation" && !choice && (
         <main className="preparation-page page-width">
           <p className="eyebrow">BLIND CHESS · UNTIMED PREPARATION</p>
           <h1>{trainingTitle(selectedTraining)}</h1>
@@ -717,9 +855,10 @@ function App() {
         </main>
       )}
 
-      {screen === "round" && round.kind !== "idle" && round.kind !== "finished" && (
+      {screen === "round" && !choice && round.kind !== "idle" && round.kind !== "finished" && (
         <main className={`round-page page-width${round.training === "coordinates" ? " coordinate-round-page" : ""}`}>
           <div className="round-topline">
+            <button className="text-button" type="button" onClick={() => { updateRound(pauseRound(roundRef.current, Date.now())); setChoice(true); }}>Pause</button>
             <div className="round-progress" role="progressbar" aria-label="Time remaining" aria-valuemin={0} aria-valuemax={60} aria-valuenow={secondsLeft}>
               <span style={{ width: `${(secondsLeft / 60) * 100}%` }} />
             </div>
