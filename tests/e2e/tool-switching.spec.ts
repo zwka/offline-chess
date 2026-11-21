@@ -198,44 +198,44 @@ test("offline four-Tool round trips and browser reopening retain exact studies, 
 
 for (const tool of ["Blind Chess", "Woodpecker Generator", "Woodpecker Trainer"]) {
   for (const departure of ["switcher", "brand"]) {
-  test(`${tool} failed checkpoint keeps ${departure} departure on the page`, async ({ page }) => {
-    const path = tools.find(([name]) => name === tool)![1];
-    await page.goto(path);
-    if (tool === "Blind Chess") {
-      await page.getByRole("button", { name: /Square Colors/ }).click();
-      await page.getByRole("button", { name: "Start", exact: true }).click();
-    } else if (tool === "Woodpecker Generator") {
-      await page.getByLabel("Set name").fill("Keep latest filters");
-    } else {
-      await page.getByRole("button", { name: "Start new Run" }).click();
-      await expect(page.getByText("Puzzle 01")).toBeVisible();
-    }
-    await page.evaluate(tool => {
-      const write = Storage.prototype.setItem;
-      const put = IDBObjectStore.prototype.put;
-      const key = tool === "Blind Chess" ? "offline-blind-chess.activity.v1" : "offline-chess.generator.activity.v1";
-      Storage.prototype.setItem = function (name, value) {
-        if (name === key) throw new DOMException("Full", "QuotaExceededError");
-        write.call(this, name, value);
-      };
-      if (tool === "Woodpecker Trainer") IDBObjectStore.prototype.put = function () { throw new DOMException("Full", "QuotaExceededError"); };
-      document.addEventListener("restore-storage", () => { Storage.prototype.setItem = write; IDBObjectStore.prototype.put = put; });
-    }, tool);
-    if (tool === "Woodpecker Generator") await page.getByLabel("Set name").fill("Unsaved latest filters");
-    if (departure === "switcher") await switchTool(page, "PGN Reader");
-    else await page.getByRole("link", { name: "Offline Chess", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${path}$`));
-    await expect(page.getByText(/could not be saved/i).first()).toBeVisible();
-    await page.evaluate(() => document.dispatchEvent(new Event("restore-storage")));
-    await switchTool(page, "PGN Reader");
-    await expect(page).toHaveURL(/\/pgn-reader\/$/);
-    await switchTool(page, tool);
-    await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Resume", exact: true }).click();
-    if (tool === "Woodpecker Generator") await expect(page.getByLabel("Set name")).toHaveValue("Unsaved latest filters");
-    if (tool === "Woodpecker Trainer") await expect(page.getByText("Puzzle 01")).toBeVisible();
-    if (tool === "Blind Chess") await expect(page.getByRole("region", { name: "Square color question" })).toBeVisible();
-  });
+    test(`${tool} failed checkpoint keeps ${departure} departure on the page`, async ({ page }) => {
+      const path = tools.find(([name]) => name === tool)![1];
+      await page.goto(path);
+      if (tool === "Blind Chess") {
+        await page.getByRole("button", { name: /Square Colors/ }).click();
+        await page.getByRole("button", { name: "Start", exact: true }).click();
+      } else if (tool === "Woodpecker Generator") {
+        await page.getByLabel("Set name").fill("Keep latest filters");
+      } else {
+        await page.getByRole("button", { name: "Start new Run" }).click();
+        await expect(page.getByText("Puzzle 01")).toBeVisible();
+      }
+      await page.evaluate(tool => {
+        const write = Storage.prototype.setItem;
+        const put = IDBObjectStore.prototype.put;
+        const key = tool === "Blind Chess" ? "offline-blind-chess.activity.v1" : "offline-chess.generator.activity.v1";
+        Storage.prototype.setItem = function (name, value) {
+          if (name === key) throw new DOMException("Full", "QuotaExceededError");
+          write.call(this, name, value);
+        };
+        if (tool === "Woodpecker Trainer") IDBObjectStore.prototype.put = function () { throw new DOMException("Full", "QuotaExceededError"); };
+        document.addEventListener("restore-storage", () => { Storage.prototype.setItem = write; IDBObjectStore.prototype.put = put; });
+      }, tool);
+      if (tool === "Woodpecker Generator") await page.getByLabel("Set name").fill("Unsaved latest filters");
+      if (departure === "switcher") await switchTool(page, "PGN Reader");
+      else await page.getByRole("link", { name: "Offline Chess", exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await expect(page.getByText(/could not be saved/i).first()).toBeVisible();
+      await page.evaluate(() => document.dispatchEvent(new Event("restore-storage")));
+      await switchTool(page, "PGN Reader");
+      await expect(page).toHaveURL(/\/pgn-reader\/$/);
+      await switchTool(page, tool);
+      await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Resume", exact: true }).click();
+      if (tool === "Woodpecker Generator") await expect(page.getByLabel("Set name")).toHaveValue("Unsaved latest filters");
+      if (tool === "Woodpecker Trainer") await expect(page.getByText("Puzzle 01")).toBeVisible();
+      if (tool === "Blind Chess") await expect(page.getByRole("region", { name: "Square color question" })).toBeVisible();
+    });
   }
 }
 
