@@ -1,10 +1,14 @@
 import type { GameDocument, TagPair } from "../wire.js";
 import { createBoard, renderBoard } from "./reader-board.js";
 import { buildNotation, revealToken, type MobileNotation } from "./reader-notation.js";
+import type { StudyPosition } from "./study-bookmark.js";
 
 export type MobileReaderOptions = {
   onBack: () => void;
   onNavigate: (gameId: number) => void;
+  initialPosition?: StudyPosition;
+  onPositionChange?: (position: StudyPosition) => void;
+  onRecovery?: (message: string) => void;
 };
 
 export type MobileReaderHandle = {
@@ -33,6 +37,18 @@ export async function renderMobileReader(
   const title = gameTitle(doc.headers);
   let notation: MobileNotation | null = null;
   let currentId = doc.rootId;
+  if (options.initialPosition) {
+    let node = doc.nodes[doc.rootId];
+    let found = true;
+    for (const index of options.initialPosition.path) {
+      const next = doc.nodes[node.children[index]];
+      if (!next) { found = false; break; }
+      node = next;
+    }
+    if (found && node.fen === options.initialPosition.fen) currentId = node.id;
+    else options.onRecovery?.("The saved move or variation is missing. Opened this game at its start instead.");
+    board.flipped = options.initialPosition.flipped;
+  }
   const previousGame = navigationButton(
     "Previous game",
     "previous-game",
@@ -198,6 +214,18 @@ export async function renderMobileReader(
     caption.textContent = node.san
       ? `${node.color === "w" ? `${node.moveNumber}.` : `${node.moveNumber}…`} ${node.san}${node.glyphs.join("")} - ply ${node.ply}`
       : "start position";
+    savePosition();
+  }
+
+  function savePosition(): void {
+    const path: number[] = [];
+    let node = doc.nodes[currentId];
+    while (node.parentId !== null) {
+      const parent = doc.nodes[node.parentId];
+      path.unshift(parent.children.indexOf(node.id));
+      node = parent;
+    }
+    options.onPositionChange?.({ path, fen: doc.nodes[currentId].fen, flipped: board.flipped });
   }
 
   function stepForward(): void {
@@ -229,6 +257,7 @@ export async function renderMobileReader(
     board.flipped = !board.flipped;
     const node = doc.nodes[currentId];
     renderBoard(board, node.fen, node.uci, node);
+    savePosition();
   }
 }
 
