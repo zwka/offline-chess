@@ -1,7 +1,7 @@
 # Generator Saved Activity
 
 Generator keeps one Saved Activity, separate from Trainer's Puzzle Sets and Run
-history. Ordinary entry offers Resume or confirmed Start fresh. Resume does not
+history. Ordinary entry, including back-forward-cache reentry, offers Resume or confirmed Start fresh. Resume does not
 scan the source index or start a Handoff; Do Puzzles remains an explicit request
 to Trainer, using its existing content-hash deduplication, unarchiving and active
 Run reuse.

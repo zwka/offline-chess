@@ -66,13 +66,24 @@ export function useSavedGeneratorActivity() {
           }
           return;
         }
-        if (!cancelled) { saved.current = restored; setEntry("choice"); }
+        if (!cancelled) {
+          saved.current = restored;
+          setMessage("");
+          setFailed(false);
+          setEntry("choice");
+        }
       } catch {
         if (!cancelled) { setMessage(saveFailure); setFailed(true); setEntry("active"); }
       }
     }
     void read();
-    return () => { cancelled = true; };
+    const reenter = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setEntry("checking");
+      void read();
+    };
+    window.addEventListener("pageshow", reenter);
+    return () => { cancelled = true; window.removeEventListener("pageshow", reenter); };
   }, []);
 
   function persist(next = activity, force = false): boolean {

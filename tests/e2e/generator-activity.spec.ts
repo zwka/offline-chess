@@ -132,6 +132,17 @@ test("visiting an untouched Generator is not unfinished work", async ({ page }) 
   await expect(page.getByRole("button", { name: "Resume", exact: true })).toHaveCount(0);
 });
 
+test("back-forward cache reentry offers Resume rather than silently exposing the previous activity", async ({ page }) => {
+  await page.goto("/woodpecker-generator/");
+  await page.getByLabel("Set name").fill("Back-forward activity");
+  // Browser lifecycle boundary: exercise a retained document, not a remount.
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect(page.getByRole("heading", { name: "Resume Generator activity?" })).toBeVisible();
+  await expect(page.getByLabel("Set name")).toHaveCount(0);
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.getByLabel("Set name")).toHaveValue("Back-forward activity");
+});
+
 test("filters and completed output survive closing and reopening a persisted browser profile", async ({ playwright, baseURL }, testInfo) => {
   const profile = testInfo.outputPath("browser-profile");
   await mkdir(profile, { recursive: true });
