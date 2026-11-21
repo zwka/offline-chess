@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream, existsSync } from "node:fs";
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -116,6 +116,18 @@ async function collectDistFiles(dir) {
 
 const distFiles = await collectDistFiles(distDir);
 const hash = createHash("sha256");
+// Include optional database identity in the version without precaching it or
+// loading the production database into build-process memory.
+const fullIndexPath = join(suiteGeneratorDistDir, "puzzle-index.generated.jsonl.gz");
+const fullManifestPath = join(suiteGeneratorDistDir, "puzzle-index.generated-manifest.json");
+let fullIndex = null;
+if (existsSync(fullIndexPath) && existsSync(fullManifestPath)) {
+  const manifest = JSON.parse(await readFile(fullManifestPath, "utf8"));
+  const digest = createHash("sha256");
+  for await (const chunk of createReadStream(fullIndexPath)) digest.update(chunk);
+  fullIndex = { manifest, bytes: (await stat(fullIndexPath)).size, digest: digest.digest("hex") };
+}
+hash.update(JSON.stringify(fullIndex));
 for (const urlPath of distFiles) {
   hash.update(urlPath);
   hash.update(await readFile(join(distDir, urlPath.slice(1))));
@@ -133,8 +145,42 @@ const precacheUrls = [...new Set([...directoryRoutes, ...distFiles])];
 
 const swSource = `const CACHE_PREFIX = "offline-chess-suite-";
 const CACHE = "offline-chess-suite-v1-${buildHash}";
+const FULL_INDEX = ${JSON.stringify(fullIndex)};
 const PRECACHE_URLS = ${JSON.stringify(precacheUrls, null, 2)};
 let installFailures = 0;
+async function verifyFullIndex(cache) {
+  if (!FULL_INDEX) return { state: "unavailable", reason: "This Suite build does not include the optional full database." };
+  if (!cache) return { state: "unavailable", reason: "No full database resources are cached for this build." };
+  const manifestResponse = await cache.match("/woodpecker-generator/puzzle-index.generated-manifest.json", { ignoreVary: true });
+  const indexResponse = await cache.match("/woodpecker-generator/puzzle-index.generated.jsonl.gz", { ignoreVary: true });
+  if (!manifestResponse && !indexResponse) return { state: "unavailable", reason: "The optional full database has not been cached for this build." };
+  if (!manifestResponse?.ok || !indexResponse?.ok) return { state: "incomplete", reason: "The cached full database or its manifest is missing or failed to cache." };
+  let manifest;
+  try { manifest = await manifestResponse.json(); }
+  catch { return { state: "failure", reason: "The cached full database manifest could not be read." }; }
+  if (manifest.kind !== "puzzle-index-manifest" || manifest.schemaVersion !== 1 ||
+      JSON.stringify(manifest) !== JSON.stringify(FULL_INDEX.manifest)) {
+    return { state: "incomplete", reason: "The cached full database manifest is stale or incompatible with this build." };
+  }
+  // Cache.put commits complete responses atomically. The server's byte length
+  // avoids rereading hundreds of MB on every foreground verification. Responses
+  // without that header are counted as a stream, without buffering the database.
+  const length = indexResponse.headers.get("Content-Length");
+  let bytes = length && /^\\d+$/.test(length) ? Number(length) : null;
+  if (bytes === null) {
+    bytes = 0;
+    const reader = indexResponse.body?.getReader();
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+      }
+    }
+  }
+  if (bytes !== FULL_INDEX.bytes) return { state: "incomplete", reason: "The cached full database size does not match this build." };
+  return { state: "available", reason: "Full database and matching manifest verified in this build's local cache." };
+}
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "suite:verify-tools" || !event.ports[0]) return;
   event.waitUntil((async () => {
@@ -146,7 +192,11 @@ self.addEventListener("message", (event) => {
         const response = cache && await cache.match(url, { ignoreVary: true });
         if (!response || !response.ok) missing.push(url);
       }
-      event.ports[0].postMessage({ state: missing.length ? "incomplete" : "ready", missing, total: PRECACHE_URLS.length, installFailures, build: CACHE });
+      let database;
+      try { database = await verifyFullIndex(cache); }
+      catch { database = { state: "failure", reason: "Browser storage could not be read; full database availability is not established." }; }
+      const sample = missing.includes("/woodpecker-generator/puzzle-index.jsonl") || missing.includes("/woodpecker-generator/puzzle-index-manifest.json") ? "incomplete" : "available";
+      event.ports[0].postMessage({ state: missing.length ? "incomplete" : "ready", missing, total: PRECACHE_URLS.length, installFailures, build: CACHE, sample, database });
     } catch {
       event.ports[0].postMessage({ state: "failure" });
     }
@@ -175,6 +225,14 @@ function createHeadResponse(response) {
     statusText: response.statusText,
     headers: response.headers,
   });
+}
+
+async function notifyDatabaseChange() {
+  for (const client of await self.clients.matchAll()) client.postMessage({ type: "suite:database-cache-changed" });
+}
+
+function isFullDatabase(pathname) {
+  return pathname === "/woodpecker-generator/puzzle-index.generated.jsonl.gz" || pathname === "/woodpecker-generator/puzzle-index.generated-manifest.json";
 }
 
 async function fromCache(request) {
@@ -216,11 +274,16 @@ async function generatedIndexHeadResponse(url) {
 
     const response = await fetch(request);
     const headResponse = createHeadResponse(response);
-    if (!response.ok) return headResponse;
+    if (!response.ok) {
+      await notifyDatabaseChange();
+      return headResponse;
+    }
     const cache = await caches.open(CACHE);
     await cache.put(request, response);
+    await notifyDatabaseChange();
     return headResponse;
   } catch {
+    await notifyDatabaseChange();
     return new Response("Offline", { status: 503 });
   }
 }
@@ -280,13 +343,18 @@ self.addEventListener("fetch", (event) => {
       const response = await fetch(event.request);
       if (response.ok && event.request.method === "GET") {
         const copy = response.clone();
-        event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)));
+        event.waitUntil((async () => {
+          try { await (await caches.open(CACHE)).put(event.request, copy); }
+          finally { if (isFullDatabase(requestUrl.pathname)) await notifyDatabaseChange(); }
+        })());
       }
       if (!response.ok) {
+        if (isFullDatabase(requestUrl.pathname)) await notifyDatabaseChange();
         return (await fromCache(event.request)) ?? response;
       }
       return response;
     } catch {
+      if (isFullDatabase(requestUrl.pathname)) await notifyDatabaseChange();
       const cached = await fromCache(event.request);
       if (cached) return cached;
       return new Response("Offline", { status: 503 });
