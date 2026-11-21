@@ -90,6 +90,57 @@ test("choosing the current Tool dismisses without reloading or interrupting a ru
   await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "47");
 });
 
+test("Solution Study checkpoints separately before switching and preserves paused Trainer return and normal Study", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-01-01") });
+  await page.clock.pauseAt(new Date("2026-01-01T00:00:01Z"));
+  await page.goto("/pgn-reader/");
+  await page.getByLabel("Choose PGN source").setInputFiles({ name: "normal.pgn", mimeType: "application/x-chess-pgn", buffer: Buffer.from('[White "Ada"]\n[Black "Boris"]\n\n1. e4 e5 *') });
+  await page.getByRole("button", { name: "Game 1, Ada versus Boris" }).click();
+  await page.getByRole("button", { name: "Forward", exact: true }).click();
+  await switchTool(page, "Woodpecker Trainer");
+  await page.getByRole("button", { name: "Start new Run" }).click();
+  await expect(page.getByText("Puzzle 01")).toBeVisible();
+  await page.clock.runFor(5_500);
+  await page.getByRole("button", { name: "Show solution" }).click();
+  await page.getByRole("button", { name: "Study solution", exact: true }).click();
+  await expect(page.getByText("Puzzle Solution Study", { exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "offline-chess.reader.solution-study.v1") throw new DOMException("Full", "QuotaExceededError");
+      write.call(this, key, value);
+    };
+    document.addEventListener("restore-storage", () => { Storage.prototype.setItem = write; });
+  });
+  await page.getByRole("button", { name: "End", exact: true }).click();
+  const caption = await page.locator(".move-caption").textContent();
+  await switchTool(page, "Blind Chess");
+  await expect(page).toHaveURL(/pgn-reader\/\?solution=1$/);
+  await expect(page.getByText(/solution move is page-only/)).toBeVisible();
+  await page.getByRole("link", { name: "Offline Chess", exact: true }).click();
+  await expect(page).toHaveURL(/pgn-reader\/\?solution=1$/);
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await expect(page).toHaveURL(/pgn-reader\/\?solution=1$/);
+  await page.evaluate(() => document.dispatchEvent(new Event("restore-storage")));
+  await switchTool(page, "Blind Chess");
+  await switchTool(page, "PGN Reader");
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.locator('[aria-current="step"]')).toContainText("e4");
+  await page.getByRole("button", { name: "Back to Library" }).click();
+  await page.getByRole("link", { name: "Resume Puzzle Solution Study" }).click();
+  await expect(page.locator(".move-caption")).toHaveText(caption!);
+  await page.clock.fastForward(86_400_000);
+  await page.getByRole("link", { name: "Return to Trainer", exact: true }).click();
+  await expect(page.getByText(/Review paused/)).toBeVisible();
+  await page.clock.fastForward(86_400_000);
+  await switchTool(page, "Blind Chess");
+  await switchTool(page, "Woodpecker Trainer");
+  const backup = await downloadJson(page, "Export backup");
+  expect(backup.runs).toHaveLength(1);
+  expect(backup.runs[0].activeTimeMs).toBe(5_500);
+  expect(backup.runs[0].currentPuzzle.kind).toBe("solution-revealed");
+});
+
 test("offline four-Tool round trips and browser reopening retain exact studies, output, Run and paused round", async ({ playwright, baseURL }, testInfo) => {
   test.setTimeout(90_000);
   const profile = testInfo.outputPath("four-tool-profile");

@@ -59,6 +59,7 @@ export async function openSolutionStudy(): Promise<void> {
   status.textContent = "Supplied recorded line only — not engine analysis. Your ordinary PGN study and Library are separate. Trainer timing is paused.";
   const normal = document.createElement("a");
   normal.href = "/pgn-reader/";
+  normal.setAttribute("data-suite-navigation", "");
   normal.textContent = "Ordinary PGN study / Library";
   controls.append(label, status, normal);
   app.append(controls, panel);
@@ -71,11 +72,14 @@ export async function openSolutionStudy(): Promise<void> {
     if (payload.warnings.length) throw new Error("The supplied solution could not be read safely.");
     const back = document.createElement("a");
     back.href = `/woodpecker-trainer/?solutionRun=${encodeURIComponent(context.runId)}&puzzle=${encodeURIComponent(context.puzzleId)}`;
+    back.setAttribute("data-suite-navigation", "");
     back.textContent = "Return to Trainer";
     controls.append(" · ", back);
     const reader = await renderMobileReader(panel, { ...payload, gameId: 0, fileId: 0, fileName: "Puzzle solution", idxInFile: 0, neighbors: { prev: null, next: null } }, {
       initialPosition: context.position ?? { path: [], fen: payload.nodes[payload.rootId].fen, flipped: payload.nodes[payload.rootId].fen.split(" ")[1] === "b" },
-      onBack: () => location.assign("/pgn-reader/"),
+      onBack: () => {
+        if (window.dispatchEvent(new Event("offline-chess:before-navigate", { cancelable: true }))) location.assign("/pgn-reader/");
+      },
       onNavigate: () => {},
       onRecovery: (message) => { status.textContent = message; },
       onPositionChange: (position) => {
@@ -86,6 +90,16 @@ export async function openSolutionStudy(): Promise<void> {
     });
     panel.querySelector(".kicker")!.textContent = `Puzzle ${context.index + 1} · ${context.puzzleId} · supplied line`;
     panel.querySelector(".reader-title")!.textContent = "Recorded solution";
+    // Separate from normal Study: retry only this solution's current position.
+    window.addEventListener("offline-chess:before-navigate", (event) => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(context));
+        status.textContent = "Solution position saved on this device. Your ordinary PGN study and Run are unchanged. Trainer timing is paused.";
+      } catch {
+        event.preventDefault();
+        status.textContent = "This solution move is page-only: it could not be saved. Your ordinary PGN study and Run are unchanged. Stay here and retry navigation when storage is available.";
+      }
+    });
     back.focus();
     window.addEventListener("beforeunload", () => reader.cleanup(), { once: true });
   } catch (error) {

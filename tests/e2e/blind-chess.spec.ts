@@ -58,6 +58,8 @@ test.describe("Blind Chess Tool (/blind-chess/)", () => {
           await expect(start).toBeVisible();
           await brand.focus();
           await page.keyboard.press("Tab");
+          await expect(page.getByRole("button", { name: "Switch Tool", exact: true })).toBeFocused();
+          await page.keyboard.press("Tab");
           await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeFocused();
           await page.keyboard.press("Tab");
           await expect(page.getByRole("button", { name: /Switch to .* mode/ })).toBeFocused();
