@@ -16,6 +16,8 @@ For **#13 navigation**, `renderMobileReader` emits `onPositionChange` synchronou
 
 For **#14 Puzzle Solution Study**, `renderMobileReader` accepts optional `initialPosition`, `onPositionChange`, and `onRecovery` callbacks. It has no knowledge of the normal bookmark store or Library persistence. A separate solution controller can render its own GameDocument and own its callbacks/storage without importing `NormalStudyBookmark`, changing normal Study, or adding Library sources.
 
+The implemented [Puzzle Solution Study connection](puzzle-solution-study.md) uses those callbacks with its own versioned context and read-only origin verification. Ordinary Reader entry and its normal Study bookmark remain independent.
+
 Missing sources/games retain the saved pointer and give a recoverable explanation; the Library stays available. Missing nodes or changed game content open at the game's start with an explicit warning rather than guessing a variation. Corrupt/unreadable normal bookmarks do not affect the Library. Pre-#8 per-source bookmarks migrate from the active source when no normal bookmark exists, with an explanation that no exact move was recorded. Invalid older bookmark references are dropped with a warning, independently of valid retained PGNs. Browser eviction is not a backup guarantee.
 
 Verification: `OFFLINE_CHESS_TEST_PORT=4207 npm run test:e2e -- tests/e2e/pgn-reader.spec.ts tests/e2e/pgn-library-study.spec.ts`. Deterministic PGNs cover search, annotations, variations, source browsing/import, Library return, parser warnings, raw PGN, reload of retained content, keyboard, and touch. Study screenshots are generated under `test-results/reader-study-*` in light/dark at 390px and 1440px.

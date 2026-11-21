@@ -1,6 +1,6 @@
 # Study a Puzzle solution in Reader and return to its Run
 
-Status: ready-for-agent
+Status: claimed
 GitHub issue: https://github.com/zwka/offline-chess/issues/14
 
 ## Parent

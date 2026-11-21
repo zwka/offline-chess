@@ -63,6 +63,7 @@ import {
 import { attemptMove, gameAtMoveIndex, isSquare, promotionForDrop, puzzlePosition, solutionLine } from "./puzzle-session";
 import { formatActiveTime } from "./run-format";
 import { useActiveRunTimer } from "./use-active-run-timer";
+import { SOLUTION_STUDY_KEY, solutionStudyPgn } from "./solution-study";
 
 type View = "library" | "archive" | "solve" | "summary" | "history";
 type PromotionChoice = Extract<PieceSymbol, "q" | "r" | "b" | "n">;
@@ -242,6 +243,7 @@ function App() {
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string; piece: string } | null>(null);
   const [boardPlayback, setBoardPlayback] = useState<BoardPlayback | null>(null);
   const [boardResetVersion, setBoardResetVersion] = useState(0);
+  const [reviewPaused, setReviewPaused] = useState(false);
   const solutionLineRef = useRef<HTMLParagraphElement>(null);
   const setInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +281,25 @@ function App() {
         } catch {
           if (!cancelled) setNotice("The handed-off Puzzle Set could not be loaded.");
         }
-        if (!cancelled) setData(next);
+        if (!cancelled) {
+          setData(next);
+          const params = new URLSearchParams(location.search);
+          const returnId = params.get("solutionRun");
+          if (returnId) {
+            const run = next.runs.find((candidate) => candidate.id === returnId);
+            const puzzleId = params.get("puzzle");
+            const set = run && next.sets.find((record) => record.set.id === run.setId)?.set;
+            if (run && set?.puzzles.some((puzzle) => puzzle.id === puzzleId)) {
+              setSelectedRunId(run.id);
+              setHistoryRunId(run.id);
+              if (run.status === "active" && set.puzzles[run.currentPuzzleIndex]?.id === puzzleId) {
+                setReviewPaused(true);
+                setView("solve");
+              } else setView("history");
+              setNotice("Review paused. Your Run and Puzzle Results are unchanged. Resume solving explicitly to restart timing.");
+            } else setNotice("The originating Run or Puzzle is missing or deleted. Your Trainer Library is still available; no Run was created.");
+          }
+        }
       } catch {
         if (!cancelled) setStorageWarning("Local storage could not be opened. Reload to try again. The Trainer needs browser storage to keep Run history.");
       }
@@ -323,7 +343,7 @@ function App() {
     });
   }
 
-  const withActiveTime = useActiveRunTimer(activeRun, view === "solve", persistActiveTime);
+  const withActiveTime = useActiveRunTimer(activeRun, view === "solve" && !reviewPaused, persistActiveTime);
 
   // Same-origin Suite links (including a switcher mounted outside React) checkpoint
   // before leaving. Pagehide is a fallback, not the primary persistence mechanism.
@@ -436,6 +456,7 @@ function App() {
       const started = await queueRunOperation(() => startRunAtomically(set));
       setData((current) => current ? { ...current, runs: started.runs } : current);
       setSelectedRunId(started.run.id);
+      setReviewPaused(false);
       setView("solve");
       setNotice(null);
       setStorageWarning(null);
@@ -449,6 +470,7 @@ function App() {
   function resumeRun(run: Run) {
     if (run.status !== "active") return;
     setSelectedRunId(run.id);
+    setReviewPaused(false);
     setView("solve");
     setNotice(null);
   }
@@ -522,7 +544,7 @@ function App() {
   }
 
   function handleMoveAttempt(from: string, to: string, piece: string, promotion?: PromotionChoice) {
-    if (isPersisting || boardPlayback || !activeRun || !selectedSet || activeRun.status !== "active" || activeRun.currentPuzzle.kind !== "playing") return false;
+    if (reviewPaused || isPersisting || boardPlayback || !activeRun || !selectedSet || activeRun.status !== "active" || activeRun.currentPuzzle.kind !== "playing") return false;
     const isPawnPromotion = piece.slice(1, 2).toUpperCase() === "P" && ["1", "8"].includes(to.slice(1, 2));
     if (isPawnPromotion && !promotion) {
       setPendingPromotion({ from, to, piece });
@@ -570,11 +592,13 @@ function App() {
   }
 
   function handleNextAfterError() {
+    if (reviewPaused) return;
     if (isPersisting || boardPlayback || !activeRun || activeRun.currentPuzzle.kind === "playing") return;
     void updateRun(nextAfterPuzzle(activeRun));
   }
 
   function handleRetry() {
+    if (reviewPaused) return;
     if (isPersisting || boardPlayback || !activeRun || (activeRun.currentPuzzle.kind !== "error" && activeRun.currentPuzzle.kind !== "solution-revealed")) return;
     void updateRun(retryPuzzle(activeRun), { resetBoard: true });
   }
@@ -591,6 +615,25 @@ function App() {
     const pending = pendingPromotion;
     setPendingPromotion(null);
     handleMoveAttempt(pending.from, pending.to, pending.piece, choice);
+  }
+
+  function canStudy(run: Run, index: number): boolean {
+    const result = run.results[index];
+    return result?.status === "first-try-solved" || (result?.status === "failed" && result.completion === "completed") ||
+      (run.status === "active" && run.currentPuzzleIndex === index && run.currentPuzzle.kind === "solution-revealed");
+  }
+
+  async function studySolution(run: Run, set: PuzzleSet, index: number) {
+    if (!canStudy(run, index) || isPersisting || boardPlayback) return;
+    try {
+      const puzzle = set.puzzles[index];
+      const pgn = solutionStudyPgn(puzzle);
+      if (!await prepareToNavigate()) return;
+      localStorage.setItem(SOLUTION_STUDY_KEY, JSON.stringify({ version: 1, runId: run.id, setId: set.id, puzzleId: puzzle.id, index, pgn, line: JSON.stringify([puzzle.fen, puzzle.moves]) }));
+      location.assign("/pgn-reader/?solution=1");
+    } catch {
+      setStorageWarning("Puzzle Solution Study could not be saved or its supplied line is invalid. Your Run is unchanged; Resume from the Library to continue.");
+    }
   }
 
   const latestRunForSet = (setId: string): Run | undefined => data?.runs
@@ -668,7 +711,7 @@ function App() {
     const isError = state.kind === "error";
     const isSolutionRevealed = state.kind === "solution-revealed";
     const isCompletedAfterError = state.kind === "completed-after-error";
-    const interactionLocked = isError || isSolutionRevealed || isCompletedAfterError;
+    const interactionLocked = reviewPaused || isError || isSolutionRevealed || isCompletedAfterError;
 
     const boardOptions: ChessboardOptions = {
       position: boardPosition,
@@ -702,6 +745,8 @@ function App() {
             <div className="board-caption"><span><span className="turn-dot" /> {position.orientation === "white" ? "White" : "Black"} to solve</span><span>{puzzle.id}</span></div>
           </section>
           <aside className={`solve-panel ${isError || isSolutionRevealed ? "error-state" : isCompletedAfterError ? "recovered-state" : ""}`}>
+            {reviewPaused && <button className="primary-button" type="button" onClick={() => { setReviewPaused(false); setNotice(null); }}>Resume solving</button>}
+            <fieldset disabled={reviewPaused} aria-label="Puzzle status" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             {isError ? (
               <>
                 <div className="state-icon error-icon"><RefreshCw size={22} /></div>
@@ -738,11 +783,18 @@ function App() {
                 <div className="solve-panel-actions"><button className="secondary-button" type="button" onClick={handleShowSolution} disabled={isPersisting || Boolean(playback)}><Eye size={17} /> Show solution</button></div>
               </>
             )}
+            </fieldset>
+            {canStudy(run, run.currentPuzzleIndex) && <button className="secondary-button" type="button" disabled={isPersisting || Boolean(playback)} onClick={() => void studySolution(run, selectedSet, run.currentPuzzleIndex)}>Study solution</button>}
             <div className="puzzle-source-link"><span>Source puzzle</span><a href={puzzle.gameUrl} target="_blank" rel="noreferrer">View record <ExternalLink size={13} /></a></div>
           </aside>
         </div>
       </main>
     );
+  }
+
+  function renderStudyChoices(run: Run, set: PuzzleSet) {
+    return <div className="solve-panel-actions">{set.puzzles.map((puzzle, index) => canStudy(run, index) &&
+      <button className="secondary-button" type="button" key={puzzle.id} onClick={() => void studySolution(run, set, index)} disabled={isPersisting || Boolean(boardPlayback)}>Study solution · Puzzle {index + 1}</button>)}</div>;
   }
 
   function renderSummary() {
@@ -758,6 +810,7 @@ function App() {
           <div className="summary-copy"><p className="eyebrow">Run complete</p><h1>{set.name}</h1><p>You finished all {score.total} puzzles. The score counts only solutions found before a wrong move or solution reveal.</p><div className="summary-actions"><button className="primary-button" type="button" onClick={() => void startRun(set)}><Play size={17} /> Start another Run</button><button className="secondary-button" type="button" onClick={() => { setHistoryRunId(run.id); setView("history"); }}><History size={16} /> Inspect results</button></div></div>
         </section>
         <div className="summary-metrics"><div><span>First-try solves</span><strong>{score.firstTrySolved}</strong></div><div><span>Completed after error</span><strong>{score.eventuallyCompleted}</strong></div><div><span>Skipped</span><strong>{score.notCompleted}</strong></div><div><span>Active solving time</span><strong>{formatActiveTime(run.activeTimeMs)}</strong></div></div>
+        {renderStudyChoices(run, set)}
       </main>
     );
   }
@@ -782,6 +835,7 @@ function App() {
               <>
                 <div className="history-detail-heading"><div><p className="eyebrow">Run detail</p><h2>{selectedHistorySet.name}</h2></div><span className={`run-badge ${selectedHistory.status}`}>{selectedHistory.status}</span></div>
                 <div className="detail-score"><strong>{scoreRun(selectedHistory).firstTrySolved}/{scoreRun(selectedHistory).total}</strong><span>first-try score / {scoreRun(selectedHistory).percentage}%</span></div>
+                {renderStudyChoices(selectedHistory, selectedHistorySet)}
                 <div className="history-run-meta"><div><span>Started</span><strong>{formatDate(selectedHistory.startedAt)}</strong></div><div><span>{selectedHistory.status === "active" ? "Status" : "Ended"}</span><strong>{selectedHistory.status === "active" ? "In progress" : formatDate(selectedHistory.endedAt)}</strong></div>{selectedHistory.status === "completed" && <div><span>Active solving time</span><strong>{formatActiveTime(selectedHistory.activeTimeMs)}</strong></div>}</div>
                 <div className="result-list">{selectedHistory.results.map((result, index) => { const label = resultLabel(result); const puzzle = selectedHistorySet.puzzles[index]; return <div className="result-row" key={`${selectedHistory.id}-${result.puzzleId}`}><span className="result-index">{String(index + 1).padStart(2, "0")}</span><span className="result-puzzle"><strong>{puzzle?.id ?? result.puzzleId}</strong><small>{puzzle?.themes.slice(0, 2).map(formatTheme).join(" / ")}</small></span><span className={`result-label ${label.tone}`}>{label.tone === "good" ? <Check size={13} /> : label.tone === "warm" ? <CheckCircle2 size={13} /> : null}{label.label}</span><span className="result-retries">{result.retryCount} retries</span></div>; })}</div>
               </>
