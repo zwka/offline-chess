@@ -115,12 +115,9 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
     ]) {
       expect(swSource).toContain(JSON.stringify(dirRoute));
     }
-    expect(swSource).not.toContain(
-      '"/woodpecker-generator/puzzle-index.generated.jsonl.gz",',
-    );
-    expect(swSource).not.toContain(
-      '"/woodpecker-generator/puzzle-index.generated-manifest.json",',
-    );
+    const precacheUrls = JSON.parse(swSource.match(/const PRECACHE_URLS = (\[[\s\S]*?\]);/)![1]);
+    expect(precacheUrls).not.toContain("/woodpecker-generator/puzzle-index.generated.jsonl.gz");
+    expect(precacheUrls).not.toContain("/woodpecker-generator/puzzle-index.generated-manifest.json");
 
     // Execute sw.js in a VM context to verify activate cache pruning and fetch/HEAD semantics
     const origin = "https://suite.example";
@@ -144,7 +141,7 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
         registration: { scope: `${origin}/` },
         location: { origin },
         navigator: { onLine: true },
-        clients: { claim: async () => {} },
+        clients: { claim: async () => {}, matchAll: async () => [] },
         skipWaiting: async () => {},
         addEventListener: (type: string, listener: (event: any) => void) => {
           listeners.set(type, listener);
@@ -427,6 +424,7 @@ test.describe("Suite PWA Manifest & Offline Service Worker", () => {
       page.getByRole("heading", { name: "Choose a drill", level: 1 }),
     ).toBeVisible();
     await page.getByRole("button", { name: /Square Colors/i }).click();
+    await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByText("WHAT COLOR IS THIS SQUARE?")).toBeVisible();
 
     // 3. PGN Reader (/pgn-reader/) offline navigation + hard reload + PGN import & piece rendering

@@ -21,7 +21,7 @@ export function useActiveRunTimer(
   run: ActiveRun | undefined,
   isSolving: boolean,
   persist: (run: ActiveRun, updateView: boolean) => void,
-): (run: Run) => Run {
+): (run: Run, pause?: boolean) => Run {
   const runRef = useRef(run);
   const persistRef = useRef(persist);
   const sessionRef = useRef<TimerSession | null>(null);
@@ -46,17 +46,18 @@ export function useActiveRunTimer(
     persistSnapshot(runId, session.tracker, true);
   }
 
-  function withActiveTime(nextRun: Run): Run {
+  function withActiveTime(nextRun: Run, pause = false): Run {
     const session = sessionRef.current;
     if (!session || session.runId !== nextRun.id) return nextRun;
 
     const now = performance.now();
     const paused = pauseActiveTime(session.tracker, now);
     const activeTimeMs = Math.round(paused.accumulatedMs);
+    session.tracker = paused;
     if (nextRun.status === "active") {
       const timedRun: ActiveRun = { ...nextRun, activeTimeMs };
       session.run = timedRun;
-      if (isSolving && document.visibilityState === "visible") {
+      if (!pause && isSolving && document.visibilityState === "visible") {
         session.tracker = resumeActiveTime(paused, now);
       }
       return timedRun;
