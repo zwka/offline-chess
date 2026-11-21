@@ -252,7 +252,7 @@ test("retains each source and reads the selected source across reloads", async (
     await expect(page.locator(".reader-title")).toContainText("First");
     await page.getByRole("button", { name: "Raw PGN source" }).click();
     await expect(page.locator(".raw-source")).toContainText('[Event "Offline First"]');
-    await page.getByRole("button", { name: "Back to Game records" }).click();
+    await page.getByRole("button", { name: "Back to Library" }).click();
 
     await page.getByRole("button", { name: "Select offline-second.pgn" }).click();
     await expect(page.locator("#source-name")).toHaveText("offline-second.pgn");
