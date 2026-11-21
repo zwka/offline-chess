@@ -56,7 +56,7 @@ import { clearAttemptHistory, readAttempts, saveAttempt } from "./storage";
 import type { ThemePreference } from "./preferences";
 import { useThemePreference } from "./useThemePreference";
 
-type Screen = "home" | "history" | "round" | "results";
+type Screen = "home" | "history" | "preparation" | "round" | "results";
 type ActiveRound = Exclude<RoundState, { kind: "idle" | "finished" }>;
 type AnswerSubmission =
   | { training: "square-colors"; answer: SquareColor }
@@ -88,42 +88,49 @@ const trainingModuleMetadata = {
   "square-colors": {
     title: "Square Colors",
     description: "Name the color of one square at a time",
+    instructions: "Choose Light or Dark for the named square. a1 is dark; moving one square along a rank or file changes the color.",
     questionLabel: "Square color question",
     questionPrompt: "WHAT COLOR IS THIS SQUARE?"
   },
   "same-color": {
     title: "Same Color",
     description: "Compare the color of two squares",
+    instructions: "Choose Same if both squares share a color, or Different if they do not. a1 and c3 match; a1 and b1 differ.",
     questionLabel: "Same color question",
     questionPrompt: "DO THESE SQUARES SHARE A COLOR?"
   },
   coordinates: {
     title: "Coordinates",
     description: "Find the named square on the board",
+    instructions: "Select the named square on the board. Files a–h run left to right; ranks 1–8 run bottom to top. Use Tab and Enter or Space to select a square with the keyboard.",
     questionLabel: "Coordinates question",
     questionPrompt: "FIND THIS SQUARE"
   },
   diagonals: {
     title: "Diagonals",
     description: "Decide whether two squares share a diagonal",
+    instructions: "Choose Same if the squares lie on the same diagonal, or Different if they do not. Their file and rank distances must be equal; sharing a color alone is not enough.",
     questionLabel: "Diagonals question",
     questionPrompt: "DO THESE SQUARES SHARE A DIAGONAL?"
   },
   quadrant: {
     title: "Quadrant",
     description: "Identify which quadrant contains each square",
+    instructions: "Choose the quadrant containing the named square. Quadrant 1: a–d, ranks 5–8. Quadrant 2: e–h, ranks 5–8. Quadrant 3: a–d, ranks 1–4. Quadrant 4: e–h, ranks 1–4.",
     questionLabel: "Quadrant question",
     questionPrompt: "WHICH QUADRANT CONTAINS THIS SQUARE?"
   },
   knight: {
     title: "Knight",
     description: "Check whether a knight can move between two squares",
+    instructions: "Choose Yes if a knight can move between the squares in one move, or No if it cannot. A knight moves two squares along one axis and one along the other.",
     questionLabel: "Knight move question",
     questionPrompt: "CAN A KNIGHT MOVE BETWEEN THESE SQUARES?"
   }
 } satisfies Record<TrainingModule, {
   title: string;
   description: string;
+  instructions: string;
   questionLabel: string;
   questionPrompt: string;
 }>;
@@ -138,11 +145,9 @@ function trainingDescription(training: TrainingModule): string {
 
 function BrandMark() {
   return (
-    <span className="brand-mark" aria-hidden="true">
-      {Array.from({ length: 9 }, (_, index) => (
-        <span key={index} />
-      ))}
-    </span>
+    <svg className="brand-mark" viewBox="0 0 64 64" width="44" height="44" aria-hidden="true">
+      <use href="/identity/symbols.svg#open-board" />
+    </svg>
   );
 }
 
@@ -239,9 +244,7 @@ function CoordinateBoard({
               type="button"
               key={name}
               aria-label={`Select square ${name}`}
-              tabIndex={-1}
               disabled={disabled}
-              onKeyDown={(event) => event.preventDefault()}
               onClick={() => onSelect(square)}
             />
           );
@@ -512,7 +515,8 @@ function App() {
   };
 
   const selectTraining = (training: TrainingModule) => {
-    prepareAttempt(training);
+    setSelectedTraining(training);
+    setScreen("preparation");
   };
 
   const openHistory = (training: TrainingModule = historyTraining) => {
@@ -640,12 +644,12 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#home" onClick={(event) => { event.preventDefault(); leaveRound(); }}>
+        <a className="brand" href="/" aria-label="Offline Chess">
           <BrandMark />
-          <span className="brand-label"><strong>OFFLINE</strong><span>BLIND CHESS</span></span>
+          <span className="brand-wordmark">Offline Chess</span>
         </a>
         <nav className="topbar-actions" aria-label="Main navigation">
-          {screen === "round" ? (
+          {screen === "round" || screen === "preparation" ? (
             <button className="text-button" type="button" onClick={leaveRound}>
               <ArrowLeft size={17} /> <span>Exit</span>
             </button>
@@ -665,7 +669,7 @@ function App() {
       {screen === "home" && (
         <main className="training-hub page-width">
           <header className="training-hub-heading">
-            <p className="eyebrow"><span className="eyebrow-dot" /> FOUNDATIONS <span>{trainingModules.length} DRILLS</span></p>
+            <p className="eyebrow">BLIND CHESS <span>{trainingModules.length} DRILLS</span></p>
             <h1>Choose a drill</h1>
           </header>
           <section className="training-options" aria-label="Training modules">
@@ -696,6 +700,23 @@ function App() {
         </main>
       )}
 
+      {screen === "preparation" && (
+        <main className="preparation-page page-width">
+          <p className="eyebrow">BLIND CHESS · UNTIMED PREPARATION</p>
+          <h1>{trainingTitle(selectedTraining)}</h1>
+          <section className="preparation-instructions" aria-label="Drill instructions">
+            <h2>How to play</h2>
+            <p>{trainingModuleMetadata[selectedTraining].instructions}</p>
+            {selectedTraining !== "coordinates" && selectedTraining !== "quadrant" && (
+              <p>Use the answer buttons or the left and right arrow keys.</p>
+            )}
+          </section>
+          <p className="timing-note">The 60-second clock begins with your first answer, not Start.</p>
+          <p>Take your time here. Start opens the first prompt; each correct answer earns one point.</p>
+          <button className="primary-button" type="button" onClick={() => prepareAttempt(selectedTraining)}><Play size={17} aria-hidden="true" /> Start</button>
+        </main>
+      )}
+
       {screen === "round" && round.kind !== "idle" && round.kind !== "finished" && (
         <main className={`round-page page-width${round.training === "coordinates" ? " coordinate-round-page" : ""}`}>
           <div className="round-topline">
@@ -707,6 +728,8 @@ function App() {
               <div className="score-metric"><span className="section-label">SCORE</span><strong>{round.correct}</strong></div>
             </div>
           </div>
+
+          {round.kind === "ready" && <p className="timing-note" role="status">Ready when you are. Your first answer starts the 60-second clock.</p>}
 
           <section
             className={`question-zone${round.training === "coordinates" ? " coordinate-question-zone" : ""}`}
@@ -794,7 +817,7 @@ function App() {
           </div>
           {storageError && <p className="storage-warning" role="alert">This attempt could not be saved on this device.</p>}
           <div className="result-actions">
-            <button className="primary-button" type="button" onClick={() => prepareAttempt(round.attempt.training)}><RotateCcw size={17} /> Play again</button>
+            <button className="primary-button" type="button" onClick={() => selectTraining(round.attempt.training)}><RotateCcw size={17} /> Play again</button>
             <button className="secondary-button" type="button" onClick={() => openHistory(round.attempt.training)}><HistoryIcon size={17} /> History</button>
           </div>
           <button className="inline-link result-home-link" type="button" onClick={() => setScreen("home")}>
@@ -836,7 +859,7 @@ function App() {
             <div className="empty-history">
               <div className="empty-mark"><HistoryIcon size={22} /></div>
               <h2>No {trainingTitle(historyTraining)} attempts yet</h2>
-              <button className="inline-link" type="button" onClick={() => prepareAttempt(historyTraining)}>
+              <button className="inline-link" type="button" onClick={() => selectTraining(historyTraining)}>
                 <Play size={16} fill="currentColor" /> Start {trainingTitle(historyTraining)}
               </button>
             </div>

@@ -33,3 +33,11 @@ Run `npm run icons` after editing `public/identity/symbols.svg`. The generator e
 ## Verification
 
 `OFFLINE_CHESS_TEST_PORT=4204 npm run test:e2e` covers four real gallery entry links, brand keyboard navigation, dark-default/persisted/shared Theme, 320px/390px touch and 1440px keyboard interaction in both Themes, description contrast (including hovered brass surfaces), plus unchanged Suite offline and Handoff journeys. Responsive tests save gallery and focus PNGs under `test-results/landing-page-gallery-*` for visual review; these are regenerable local artifacts, not screenshot baselines. Existing offline coverage now also requires the identity assets in the root cache.
+
+## Blind Chess
+
+Blind Chess consumes the same stylesheet and Open board symbol, with a brass header, board frames and timing/feedback surfaces, serif major headings, and sans-serif controls. Correct/error feedback retains semantic green/red and written feedback rather than using brass alone. Existing drill layouts and completed Attempt storage remain independent.
+
+Selecting any of the six drills (including Play again or an empty history's drill link) opens untimed instructions. Start reveals the first prompt without starting the clock; the first answer still begins the existing 60-second round. Saved Activity restoration is a separate delivery slice.
+
+`OFFLINE_CHESS_TEST_PORT=4205 npm run test:e2e -- tests/e2e/blind-chess.spec.ts` uses paused browser clocks with explicit advances, all six drills, 320px/390px/1440px viewports, both Themes, keyboard selection, feedback contrast, completed history and brand navigation. Regenerable preparation, feedback, result and history screenshots live under `test-results/blind-chess-*`.

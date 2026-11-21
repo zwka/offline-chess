@@ -57,10 +57,10 @@ describe("theme preference", () => {
 
     expect(applyTheme("dark")).toBe("dark");
     expect(dataset.theme).toBe("dark");
-    expect(setAttribute).toHaveBeenLastCalledWith("content", "#172321");
+    expect(setAttribute).toHaveBeenLastCalledWith("content", "#191c1c");
 
     expect(applyTheme("light")).toBe("light");
     expect(dataset.theme).toBe("light");
-    expect(setAttribute).toHaveBeenLastCalledWith("content", "#f4f0e7");
+    expect(setAttribute).toHaveBeenLastCalledWith("content", "#f5f0e6");
   });
 });
