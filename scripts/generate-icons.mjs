@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
@@ -14,7 +14,7 @@ function artwork(maskable = false, monochrome = false) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
     ${monochrome ? "" : '<rect width="512" height="512" rx="0" fill="#191c1c"/>'}
     <svg x="${offset}" y="${offset}" width="${size}" height="${size}" viewBox="0 0 64 64" color="${monochrome ? "#000" : "#e1bc78"}">${board}</svg>
-  </svg>`;
+  </svg>`.split("\n").filter(line => line.trim()).join("\n");
 }
 for (const [name, size, maskable] of [
   ["favicon-32.png", 32, false],
@@ -28,3 +28,10 @@ for (const [name, size, maskable] of [
 }
 await writeFile(new URL("identity/open-board.svg", publicDirectory), artwork());
 await writeFile(new URL("identity/open-board-mono.svg", publicDirectory), artwork(false, true));
+
+// Keep standalone Woodpecker previews consistent with the root Suite icons.
+for (const tool of ["generator", "trainer"]) {
+  for (const name of ["favicon-32.png", "apple-touch-icon.png"]) {
+    await copyFile(new URL(name, publicDirectory), new URL(`../apps/woodpecker/apps/${tool}/public/${name}`, import.meta.url));
+  }
+}

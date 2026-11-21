@@ -26,6 +26,8 @@ Keep the visible wordmark alongside the symbol. Decorative Tool symbols use `ari
 
 ## Regeneration
 
+Generation also synchronizes the browser/touch icon copies used by standalone Woodpecker previews with the root Suite assets.
+
 Run `npm run icons` after editing `public/identity/symbols.svg`. The generator extracts the Open board symbol as its single geometry source and writes the standalone SVGs and PNG sizes above. The maskable mark uses a 320px viewport centered in 512px; all painted geometry stays inside the central 80%-diameter safe circle. Its background fills the image. Regular icons use a larger 448px viewport. Source App chess-piece artwork and legacy card JPEGs are retained, not replaced or deleted.
 
 ## Verification

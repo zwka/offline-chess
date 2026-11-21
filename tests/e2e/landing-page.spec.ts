@@ -158,7 +158,7 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await testInfo.attach(`gallery-${viewport.width}-${theme}`, { body: await page.screenshot({ path: testInfo.outputPath(`gallery-${viewport.width}-${theme}.png`), fullPage: true }), contentType: "image/png" });
 
-      // Brand, Theme, then every Tool: no hidden or redundant navigation stops.
+      // Brand, Theme, offline details, then every Tool: no hidden stops.
       await page.getByRole("link", { name: "Offline Chess", exact: true }).focus();
       await page.keyboard.press("Tab");
       const toggle = page.getByRole("button", { name: /Switch to .* mode/ });
@@ -166,6 +166,8 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
       const toggleBox = await toggle.boundingBox();
       expect(toggleBox!.width).toBeGreaterThanOrEqual(44);
       expect(toggleBox!.height).toBeGreaterThanOrEqual(44);
+      await page.keyboard.press("Tab");
+      await expect(page.getByRole("button", { name: /Offline status:/ })).toBeFocused();
       const names = ["Blind Chess", "PGN Reader", "Woodpecker Generator", "Woodpecker Trainer"];
       for (const name of names) {
         await page.keyboard.press("Tab");
