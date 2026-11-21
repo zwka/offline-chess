@@ -586,6 +586,9 @@ progress::-moz-progress-bar { background: var(--teal); border-radius: 999px; }
 .variation.collapsed::after { color: var(--muted); content: " …"; }
 .result-token { color: var(--muted); font: 700 13px var(--mono); margin-left: 6px; }
 .reader-error { color: var(--bad); padding: 24px 0; }
+.study-activity { padding: 16px; margin: 16px 0; }
+.study-activity p { margin: 0 0 12px; }
+.study-activity button { margin-right: 8px; }
 
 @media (max-width: 700px) {
   .reader-header { grid-template-columns: minmax(0, 1fr) auto; }

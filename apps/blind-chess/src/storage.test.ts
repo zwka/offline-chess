@@ -139,4 +139,15 @@ describe("attempt history storage", () => {
 
     expect(readAttempts()).toEqual([]);
   });
+
+  it("does not overwrite history when reading it is denied or its content is invalid", () => {
+    const completed = attempt("e842882b-e4b0-46bc-8b1d-c7a4ccdf774e", "2026-10-18T12:00:00.000Z", 4);
+    values.set("offline-blind-chess.attempts.v1", "invalid history retained for recovery");
+    expect(saveAttempt(completed).saved).toBe(false);
+    expect(values.get("offline-blind-chess.attempts.v1")).toBe("invalid history retained for recovery");
+    const setItem = vi.fn();
+    vi.stubGlobal("window", { localStorage: { getItem: () => { throw new Error("denied"); }, setItem } });
+    expect(saveAttempt(completed).saved).toBe(false);
+    expect(setItem).not.toHaveBeenCalled();
+  });
 });

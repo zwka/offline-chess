@@ -74,6 +74,7 @@ for (const width of [390, 1440]) {
 test("touch Library browsing preserves a study across sources and imports; warnings and original PGN remain readable", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 320, height: 900 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
+  page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/pgn-reader/");
   await page.getByLabel("Choose PGN source").setInputFiles({ name: "original.pgn", mimeType: "application/x-chess-pgn", buffer: Buffer.from(pgn) });
   await page.getByRole("button", { name: "Game 1, Ada versus Boris" }).tap();
